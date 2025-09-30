@@ -3,6 +3,8 @@ package sdk
 import (
 	"fmt"
 	"strings"
+
+	"github.com/Yeah114/FunInterwork/bot/core/minecraft/protocol/packet"
 )
 
 type Plugin interface {
@@ -21,6 +23,47 @@ type ConsoleCommand struct {
 	Description  string
 	Handler      ConsoleCommandHandler
 }
+
+type PreloadHandler func()
+
+type ActiveHandler func()
+
+type PlayerEvent struct {
+	Name            string
+	XUID            string
+	UUID            string
+	EntityUniqueID  int64
+	EntityRuntimeID uint64
+	BuildPlatform   int32
+	Raw             *packet.PlayerList
+	EntryIndex      int
+}
+
+type PlayerEventHandler func(PlayerEvent)
+
+type ChatEvent struct {
+	Sender     string
+	Message    string
+	TextType   byte
+	Parameters []string
+	Raw        *packet.Text
+}
+
+type ChatHandler func(ChatEvent)
+
+type FrameExitEvent struct {
+	Signal string
+	Reason string
+}
+
+type FrameExitHandler func(FrameExitEvent)
+
+type PacketEvent struct {
+	ID  uint32
+	Raw packet.Packet
+}
+
+type PacketHandler func(PacketEvent)
 
 type BotInfo struct {
 	Name            string
@@ -45,13 +88,20 @@ type InterworkInfo struct {
 }
 
 type ContextOptions struct {
-	PluginName        string
-	BotInfoFunc       func() BotInfo
-	ServerInfoFunc    func() ServerInfo
-	QQInfoFunc        func() QQInfo
-	InterworkInfoFunc func() InterworkInfo
-	ConsoleRegistrar  func(ConsoleCommand) error
-	Logger            func(format string, args ...interface{})
+	PluginName          string
+	BotInfoFunc         func() BotInfo
+	ServerInfoFunc      func() ServerInfo
+	QQInfoFunc          func() QQInfo
+	InterworkInfoFunc   func() InterworkInfo
+	ConsoleRegistrar    func(ConsoleCommand) error
+	Logger              func(format string, args ...interface{})
+	RegisterPreload     func(PreloadHandler) error
+	RegisterActive      func(ActiveHandler) error
+	RegisterPlayerJoin  func(PlayerEventHandler) error
+	RegisterPlayerLeave func(PlayerEventHandler) error
+	RegisterChat        func(ChatHandler) error
+	RegisterFrameExit   func(FrameExitHandler) error
+	RegisterPacket      func(PacketHandler, []uint32) error
 }
 
 type Context struct {
@@ -148,4 +198,74 @@ func (c *Context) Logf(format string, args ...interface{}) {
 		return
 	}
 	c.opts.Logger(format, args...)
+}
+
+func (c *Context) ListenPreload(handler PreloadHandler) error {
+	if c == nil || c.opts.RegisterPreload == nil {
+		return fmt.Errorf("预加载事件注册未启用")
+	}
+	if handler == nil {
+		return fmt.Errorf("预加载事件处理器不能为空")
+	}
+	return c.opts.RegisterPreload(handler)
+}
+
+func (c *Context) ListenActive(handler ActiveHandler) error {
+	if c == nil || c.opts.RegisterActive == nil {
+		return fmt.Errorf("激活事件注册未启用")
+	}
+	if handler == nil {
+		return fmt.Errorf("激活事件处理器不能为空")
+	}
+	return c.opts.RegisterActive(handler)
+}
+
+func (c *Context) ListenPlayerJoin(handler PlayerEventHandler) error {
+	if c == nil || c.opts.RegisterPlayerJoin == nil {
+		return fmt.Errorf("玩家加入事件注册未启用")
+	}
+	if handler == nil {
+		return fmt.Errorf("玩家加入事件处理器不能为空")
+	}
+	return c.opts.RegisterPlayerJoin(handler)
+}
+
+func (c *Context) ListenPlayerLeave(handler PlayerEventHandler) error {
+	if c == nil || c.opts.RegisterPlayerLeave == nil {
+		return fmt.Errorf("玩家离开事件注册未启用")
+	}
+	if handler == nil {
+		return fmt.Errorf("玩家离开事件处理器不能为空")
+	}
+	return c.opts.RegisterPlayerLeave(handler)
+}
+
+func (c *Context) ListenChat(handler ChatHandler) error {
+	if c == nil || c.opts.RegisterChat == nil {
+		return fmt.Errorf("聊天事件注册未启用")
+	}
+	if handler == nil {
+		return fmt.Errorf("聊天事件处理器不能为空")
+	}
+	return c.opts.RegisterChat(handler)
+}
+
+func (c *Context) ListenFrameExit(handler FrameExitHandler) error {
+	if c == nil || c.opts.RegisterFrameExit == nil {
+		return fmt.Errorf("退出事件注册未启用")
+	}
+	if handler == nil {
+		return fmt.Errorf("退出事件处理器不能为空")
+	}
+	return c.opts.RegisterFrameExit(handler)
+}
+
+func (c *Context) ListenPacket(handler PacketHandler, packetIDs ...uint32) error {
+	if c == nil || c.opts.RegisterPacket == nil {
+		return fmt.Errorf("数据包事件注册未启用")
+	}
+	if handler == nil {
+		return fmt.Errorf("数据包事件处理器不能为空")
+	}
+	return c.opts.RegisterPacket(handler, packetIDs)
 }

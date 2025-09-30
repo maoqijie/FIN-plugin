@@ -148,20 +148,53 @@ ctx.RegisterConsoleCommand(sdk.ConsoleCommand{
    ```
    主程序会加载编译后的 `.so` 并调用 `NewPlugin()`，随后依次执行 `Init`、`Start`；卸载或热重载时会调用 `Stop`。
 4. **声明 Manifest**：填写 `plugin.yaml` 并更新默认配置。
-5. **调试**：运行主程序，确认自动加载插件并输出日志。无需先手编译 `main.so`，主程序会在 Linux/macOS 环境下自动完成插件构建。可通过 `FUN_PLUGIN_DEBUG=1` 环境变量启用更详细日志（计划中）。
-6. **打包发布**：将插件目录打包成 zip 或直接提交到私有 Git 仓库，供主程序拉取。
+5. **事件监听**：在 `Init` 阶段通过 `ctx.ListenPreload`、`ctx.ListenActive` 等方法注册回调（见下文）。
+6. **调试**：运行主程序，确认自动加载插件并输出日志。无需先手编译 `main.so`，主程序会在 Linux/macOS 环境下自动完成插件构建。可通过 `FUN_PLUGIN_DEBUG=1` 环境变量启用更详细日志（计划中）。
+7. **打包发布**：将插件目录打包成 zip 或直接提交到私有 Git 仓库，供主程序拉取。
+
+### 事件监听
+
+`sdk.Context` 已内置与 ToolDelta 类似的事件注册接口，所有监听方法会在插件重载时自动清理：
+
+- `ListenPreload(func())`：插件加载完成且尚未连接服务器时触发一次。
+- `ListenActive(func())`：插件启动成功、互通链路就绪后触发。
+- `ListenPlayerJoin(func(sdk.PlayerEvent))`：玩家加入时触发，包含昵称、XUID、UUID、平台信息。
+- `ListenPlayerLeave(func(sdk.PlayerEvent))`：玩家离开时触发，若可获取到历史信息会一并返回。
+- `ListenChat(func(sdk.ChatEvent))`：收到游戏聊天消息时触发，附带消息类型与原始数据包。
+- `ListenFrameExit(func(sdk.FrameExitEvent))`：插件即将卸载或框架退出时触发，可用于清理资源。
+- `ListenPacket(func(sdk.PacketEvent), packetIDs ...uint32)`：监听指定或全部 MC 数据包（不拦截传递，只读）。
+
+示例：
+
+```go
+func (p *ExamplePlugin) Init(ctx *sdk.Context) error {
+    p.ctx = ctx
+    ctx.ListenPreload(func() {
+        p.ctx.Logf("插件已加载，等待与服务器建立连接")
+    })
+    ctx.ListenActive(func() {
+        p.ctx.Logf("已与服务器建立连接")
+    })
+    ctx.ListenChat(func(evt sdk.ChatEvent) {
+        p.ctx.Logf("%s: %s", evt.Sender, evt.Message)
+    })
+    ctx.ListenPlayerJoin(func(evt sdk.PlayerEvent) {
+        p.ctx.Logf("玩家 %s 加入，平台=%d", evt.Name, evt.BuildPlatform)
+    })
+    ctx.ListenPacket(func(evt sdk.PacketEvent) {
+        p.ctx.Logf("收到数据包: %d", evt.ID)
+    }, packet.IDText)
+    return nil
+}
+```
+
+> 示例需额外引入 `github.com/Yeah114/FunInterwork/bot/core/minecraft/protocol/packet`。
+
+所有监听接口在插件 `Stop()`、热重载或程序退出时均会自动注销，无需手动清理。
 
 ### ToolDelta 插件主体速览
 
-若需参考 ToolDelta 生态中的经典插件实现，可对照以下要点：
-
-- **插件主类**：继承自 `Plugin` 基类，声明 `name`、`version`、`author`、`description` 等元数据，必要时可提供 `_api_names` 与 `_api_ver` 以暴露 API 能力。
-- **初始化阶段**：在 `__init__` 中保存框架实例、创建打印工具，并按需准备数据目录或配置文件，便于后续访问。
-- **事件注册**：通过 `ListenPreload`、`ListenActive`、`ListenPlayerJoin`、`ListenChat` 等方法绑定回调，可指定优先级实现多插件协作。
-- **数据包监听**：借助 `ListenPacket` 与 `ListenBytesPacket` 区分字典包与二进制包，返回 `True` 可拦截后续处理。
-- **插件入口**：在模块最外层调用 `entry = plugin_entry(YourPlugin)` 完成注册，ToolDelta 将在读取插件时实例化并执行生命周期方法。
-
-以上流程与示例代码可在 `ToolDelta` 仓库与官方 Wiki 中查阅，便于对照本框架扩展实现。
+若需对照 ToolDelta 生态的经典插件实现，可继续参考其生命周期说明，但 FunInterwork 插件框架以 Go 插件形式发布，事件注册和命令接口均通过 `sdk.Context` 提供。
 
 ## 路线图
 

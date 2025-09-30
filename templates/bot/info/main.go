@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/FunInterwork/PluginFramework/sdk"
+	sdk "github.com/maoqijie/FIN-plugin/sdk"
 )
 
 // InfoPlugin 演示如何注册控制台命令与读取上下文信息。
@@ -14,6 +14,15 @@ type InfoPlugin struct {
 
 func (p *InfoPlugin) Init(ctx *sdk.Context) error {
 	p.ctx = ctx
+	_ = ctx.ListenActive(func() {
+		p.ctx.Logf("Info 插件已连接到服务器")
+	})
+	_ = ctx.ListenChat(func(evt sdk.ChatEvent) {
+		if strings.TrimSpace(evt.Message) == "" {
+			return
+		}
+		fmt.Printf("[Chat] %s: %s\n", evt.Sender, evt.Message)
+	})
 
 	return ctx.RegisterConsoleCommand(sdk.ConsoleCommand{
 		Triggers:     []string{"info", "botinfo"},
@@ -53,4 +62,3 @@ func (p *InfoPlugin) handleInfoCommand(args []string) error {
 func NewPlugin() sdk.Plugin {
 	return &InfoPlugin{}
 }
-
