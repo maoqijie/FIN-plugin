@@ -4,7 +4,7 @@
 
 ## 目录规划
 
-- `docs/`：框架说明与插件开发手册。
+- `docs/`：框架说明与插件开发手册（详见 [docs/development.md](docs/development.md)）。
 - `templates/`：插件脚手架与示例代码。
 - `sdk/`：与主程序交互的公共接口定义。
 
@@ -17,5 +17,10 @@
 | 综合插件 | `Plugin/bot/` | 同时处理游戏侧与 QQ 侧的消息 |
 
 > 主程序运行后将在执行目录下自动创建以上三个目录。
+
+## 开发指南速览
+
+- 参考 [docs/development.md](docs/development.md) 获取插件 Manifest、生命周期与事件模型的详细说明。
+- 模板与 SDK 会陆续补齐，欢迎提交 PR 补充示例或完善文档。
 
 欢迎通过 PR 补充框架文档与示例。
