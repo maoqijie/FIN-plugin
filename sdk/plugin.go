@@ -110,8 +110,35 @@ func (c *Context) RegisterConsoleCommand(cmd ConsoleCommand) error {
 	if cmd.Handler == nil {
 		return fmt.Errorf("命令处理器不能为空")
 	}
-	if len(cmd.Triggers) == 0 && strings.TrimSpace(cmd.Name) == "" {
+	if len(cmd.Triggers) == 0 {
+		name := strings.TrimSpace(cmd.Name)
+		if name != "" {
+			cmd.Triggers = []string{name}
+		}
+	}
+	if len(cmd.Triggers) == 0 {
 		return fmt.Errorf("命令触发词不能为空")
+	}
+	seen := make(map[string]struct{}, len(cmd.Triggers))
+	normalized := make([]string, 0, len(cmd.Triggers))
+	for _, trig := range cmd.Triggers {
+		trimmed := strings.TrimSpace(trig)
+		if trimmed == "" {
+			continue
+		}
+		key := strings.ToLower(trimmed)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		normalized = append(normalized, trimmed)
+	}
+	if len(normalized) == 0 {
+		return fmt.Errorf("命令触发词不能为空")
+	}
+	cmd.Triggers = normalized
+	if strings.TrimSpace(cmd.Name) == "" {
+		cmd.Name = cmd.Triggers[0]
 	}
 	return c.opts.ConsoleRegistrar(cmd)
 }

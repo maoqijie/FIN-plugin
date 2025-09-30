@@ -128,7 +128,7 @@ ctx.RegisterConsoleCommand(sdk.ConsoleCommand{
 })
 ```
 
-控制台输入 `?`、`/?` 或 `？` 时会自动列出已注册的插件命令、参数提示与用途说明，方便快速查看；插件卸载或热重载时命令会自动清理，无需手工撤销。模板 `templates/bot/info` 会随后补充对应示例。
+控制台输入 `?`、`/?` 或 `？` 时会自动列出已注册的插件命令、参数提示与用途说明，方便快速查看；插件卸载或热重载时命令会自动清理，无需手工撤销。仓库中的 `templates/bot/info/` 示例演示了如何注册多个触发词并展示参数提示与用途说明。
 
 ## 开发流程示例
 
@@ -150,6 +150,18 @@ ctx.RegisterConsoleCommand(sdk.ConsoleCommand{
 4. **声明 Manifest**：填写 `plugin.yaml` 并更新默认配置。
 5. **调试**：运行主程序，确认自动加载插件并输出日志。无需先手编译 `main.so`，主程序会在 Linux/macOS 环境下自动完成插件构建。可通过 `FUN_PLUGIN_DEBUG=1` 环境变量启用更详细日志（计划中）。
 6. **打包发布**：将插件目录打包成 zip 或直接提交到私有 Git 仓库，供主程序拉取。
+
+### ToolDelta 插件主体速览
+
+若需参考 ToolDelta 生态中的经典插件实现，可对照以下要点：
+
+- **插件主类**：继承自 `Plugin` 基类，声明 `name`、`version`、`author`、`description` 等元数据，必要时可提供 `_api_names` 与 `_api_ver` 以暴露 API 能力。
+- **初始化阶段**：在 `__init__` 中保存框架实例、创建打印工具，并按需准备数据目录或配置文件，便于后续访问。
+- **事件注册**：通过 `ListenPreload`、`ListenActive`、`ListenPlayerJoin`、`ListenChat` 等方法绑定回调，可指定优先级实现多插件协作。
+- **数据包监听**：借助 `ListenPacket` 与 `ListenBytesPacket` 区分字典包与二进制包，返回 `True` 可拦截后续处理。
+- **插件入口**：在模块最外层调用 `entry = plugin_entry(YourPlugin)` 完成注册，ToolDelta 将在读取插件时实例化并执行生命周期方法。
+
+以上流程与示例代码可在 `ToolDelta` 仓库与官方 Wiki 中查阅，便于对照本框架扩展实现。
 
 ## 路线图
 
