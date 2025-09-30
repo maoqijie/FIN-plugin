@@ -4,25 +4,26 @@
 
 ## 目录约定
 
-主程序运行时会在工作目录创建以下三类插件目录：
+主程序运行时会在工作目录创建单一插件目录，所有插件按名称归档：
 
 ```
 Plugin/
-  Nbot/   # Minecraft 游戏侧插件（仅处理游戏事件）
-  Qbot/   # QQ 机器人插件（仅处理 QQ 事件）
-  bot/    # 综合插件（可同时操作游戏与 QQ）
+  example/
+    example.so
+    plugin.yaml
+    assets/
 ```
 
-在本仓库中，`templates/` 将提供各目录的示例骨架，`docs/` 负责文档，`sdk/` 将存放对接主程序的公共接口定义。
+在本仓库中，`templates/` 提供示例骨架，`docs/` 维护文档，`sdk/` 存放对接主程序的公共接口定义。
 
 ## 插件结构
 
-每个插件应放置在目标分类目录下的独立文件夹，例如：
+每个插件需要放在 `Plugin/<插件名>/` 目录下，例如：
 
 ```
-Plugin/Nbot/example/
-  plugin.yaml
-  main.go            # 或其它实现语言（待 SDK 发布）
+Plugin/example/
+  main.so             # 默认入口文件
+  plugin.yaml         # 可选，补充元数据
   assets/
   README.md
 ```
@@ -35,8 +36,7 @@ Manifest 用于描述插件的基本信息及运行入口，建议使用 YAML：
 name: example
 displayName: 示例插件
 version: 0.1.0
-type: Nbot            # Nbot | Qbot | bot
-entry: main.go        # 或 ./bin/example.so 等
+entry: ./bin/example.so   # 可选，缺省为 main.so
 sdkVersion: 0.1.0
 authors:
   - 猫七街
@@ -57,19 +57,20 @@ config:
 字段说明：
 
 - `name`：插件唯一标识。
-- `type`：必须与所在目录一致（`Nbot`、`Qbot` 或 `bot`）。
-- `entry`：入口脚本或可执行文件。主程序将读取 Manifest 并根据 `type` 调用相应的装载器。
+- `entry`：入口脚本或可执行文件。缺省时主程序会使用 `main.so`。
 - `sdkVersion`：声明依赖的 SDK 版本，便于主程序做兼容检查。
 - `dependencies`：插件间依赖（可选）。
 - `permissions`：声明本插件需要访问的能力，便于后续统一治理。
 - `config`：插件默认配置，主程序首次加载时可据此生成用户可编辑的配置文件。
 
+当插件目录中存在 `.go` 源码时，主程序会在加载或热重载阶段自动执行 `go build -buildmode=plugin -o main.so .` 生成共享库（目前仅支持 Linux 与 macOS）；因此只需提交源码即可，标题所述的 `main.so` 会由运行实例按需编译。
+
 ## 生命周期约定
 
 主程序将在以下阶段与插件交互（具体接口以 `sdk/` 发布为准）：
 
-1. **Discover**：读取分类目录，解析 `plugin.yaml`。
-2. **Validate**：校验 `type`、`sdkVersion`、权限等信息。
+1. **Discover**：读取 `Plugin/<插件名>/` 目录，解析 `plugin.yaml`（如缺省则使用默认元数据）。
+2. **Validate**：校验 `entry`、`sdkVersion`、权限等信息，确保入口存在。
 3. **Init**：调用插件入口的 `Init(ctx)`，传入运行环境（日志输出、事件总线、配置等）。
 4. **Start**：对可运行插件执行 `Start()`，开始监听事件或任务。
 5. **Stop**：进程退出或热重载时调用 `Stop()`，要求插件自行释放资源。
@@ -86,20 +87,54 @@ config:
 
 SDK 将提供统一事件总线，插件可订阅或发送事件；综合插件可同时订阅两侧事件，实现跨平台逻辑。
 
+## 上下文能力
+
+`sdk.Context` 会在 `Init` 阶段传入插件，内部封装了多种读取函数：
+
+- `BotInfo()`：返回机器人昵称、XUID 以及实体 ID。
+- `ServerInfo()`：返回租赁服号以及是否配置口令。
+- `QQInfo()`：返回当前使用的 QQ 适配器、OneBot WS 地址及 AccessToken 配置状态。
+- `InterworkInfo()`：返回互通群别名与群号。每次调用都会复制一份映射，避免插件误改主进程数据。
+
+调用 `Context.Logf` 输出日志时会自动附带插件前缀；`Context.PluginName()` 可获取当前插件名称，便于打包或埋点。
+
+### 注册控制台命令
+
+通过 `Context.RegisterConsoleCommand` 可向主程序注册新的控制台命令。主程序会优先匹配这些命令，再将未命中的输入转发为租赁服指令，因此既支持直接输入 `info`，也支持 `/info` 的写法。示例：
+
+```go
+ctx.RegisterConsoleCommand(sdk.ConsoleCommand{
+    Name:        "info",
+    Description: "输出机器人与服务器信息",
+    Handler: func(args []string) error {
+        bot := ctx.BotInfo()
+        fmt.Printf("机器人昵称: %s\n", bot.Name)
+        return nil
+    },
+})
+```
+
+命令处理器返回错误时会在控制台提示；插件卸载或热重载时命令会自动清理，无需手工撤销。模板 `templates/bot/info` 提供了完整示例。
+
 ## 开发流程示例
 
 1. **拉取框架**：在 FunInterWork 主仓库执行 `git submodule update --init PluginFramework`。
-2. **选择模板**：从 `templates/` 复制对应类型的骨架至目标目录，例如 `Plugin/bot/example/`。
-3. **编写逻辑**：实现入口文件（暂建议使用 Go）。入口需实现 SDK 定义的 `Plugin` 接口：
+2. **选择模板**：从 `templates/` 复制骨架到 `Plugin/<插件名>/`，并根据需要调整入口文件名。
+3. **编写逻辑**：实现入口文件（暂建议使用 Go）。入口需实现 SDK 定义的 `Plugin` 接口，并导出工厂方法：
    ```go
    type Plugin interface {
        Init(ctx *sdk.Context) error
        Start() error
        Stop() error
    }
+
+   func NewPlugin() Plugin {
+       return &Example{}
+   }
    ```
+   主程序会加载编译后的 `.so` 并调用 `NewPlugin()`，随后依次执行 `Init`、`Start`；卸载或热重载时会调用 `Stop`。
 4. **声明 Manifest**：填写 `plugin.yaml` 并更新默认配置。
-5. **调试**：运行主程序，确认自动加载插件并输出日志。可通过 `FUN_PLUGIN_DEBUG=1` 环境变量启用更详细日志（计划中）。
+5. **调试**：运行主程序，确认自动加载插件并输出日志。无需先手编译 `main.so`，主程序会在 Linux/macOS 环境下自动完成插件构建。可通过 `FUN_PLUGIN_DEBUG=1` 环境变量启用更详细日志（计划中）。
 6. **打包发布**：将插件目录打包成 zip 或直接提交到私有 Git 仓库，供主程序拉取。
 
 ## 路线图
