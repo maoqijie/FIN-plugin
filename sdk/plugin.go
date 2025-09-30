@@ -1,6 +1,9 @@
 package sdk
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type Plugin interface {
 	Init(ctx *Context) error
@@ -11,9 +14,12 @@ type Plugin interface {
 type ConsoleCommandHandler func(args []string) error
 
 type ConsoleCommand struct {
-	Name        string
-	Description string
-	Handler     ConsoleCommandHandler
+	Name         string
+	Triggers     []string
+	ArgumentHint string
+	Usage        string
+	Description  string
+	Handler      ConsoleCommandHandler
 }
 
 type BotInfo struct {
@@ -103,6 +109,9 @@ func (c *Context) RegisterConsoleCommand(cmd ConsoleCommand) error {
 	}
 	if cmd.Handler == nil {
 		return fmt.Errorf("命令处理器不能为空")
+	}
+	if len(cmd.Triggers) == 0 && strings.TrimSpace(cmd.Name) == "" {
+		return fmt.Errorf("命令触发词不能为空")
 	}
 	return c.opts.ConsoleRegistrar(cmd)
 }

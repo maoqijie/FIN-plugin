@@ -100,21 +100,35 @@ SDK 将提供统一事件总线，插件可订阅或发送事件；综合插件�
 
 ### 注册控制台命令
 
-通过 `Context.RegisterConsoleCommand` 可向主程序注册新的控制台命令。主程序会优先匹配这些命令，再将未命中的输入转发为租赁服指令，因此既支持直接输入 `info`，也支持 `/info` 的写法。示例：
+通过 `Context.RegisterConsoleCommand` 可向主程序注册新的控制台命令。主程序会优先匹配这些命令，再将未命中的输入转发为租赁服指令，因此既支持直接输入 `info`，也支持 `/info` 的写法。`ConsoleCommand` 支持以下字段：
+
+- `Triggers`：触发词列表，至少提供一个（等效于旧版的 `Name`）。会忽略大小写及重复项。
+- `ArgumentHint`：参数提示字符串（可选），用于帮助信息展示。
+- `Usage`：命令用途说明（可选），在控制台输入 `?`、`/?` 或 `？` 时统一展示。
+- `Description`：补充描述（可选），在帮助信息中按行显示。
+- `Handler`：命令回调，入参为按空白分割后的参数切片；返回错误会在控制台回显。
+
+示例：
 
 ```go
 ctx.RegisterConsoleCommand(sdk.ConsoleCommand{
-    Name:        "info",
-    Description: "输出机器人与服务器信息",
+    Triggers:     []string{"info", "botinfo"},
+    ArgumentHint: "[详细]",
+    Usage:        "查看机器人与服务器运行状态",
+    Description:  "输出机器人、租赁服与互通配置的实时信息",
     Handler: func(args []string) error {
         bot := ctx.BotInfo()
         fmt.Printf("机器人昵称: %s\n", bot.Name)
+        if len(args) > 0 && strings.EqualFold(args[0], "详细") {
+            inter := ctx.InterworkInfo()
+            fmt.Printf("已关联群组: %d 个\n", len(inter.LinkedGroups))
+        }
         return nil
     },
 })
 ```
 
-命令处理器返回错误时会在控制台提示；插件卸载或热重载时命令会自动清理，无需手工撤销。模板 `templates/bot/info` 提供了完整示例。
+控制台输入 `?`、`/?` 或 `？` 时会自动列出已注册的插件命令、参数提示与用途说明，方便快速查看；插件卸载或热重载时命令会自动清理，无需手工撤销。模板 `templates/bot/info` 会随后补充对应示例。
 
 ## 开发流程示例
 
