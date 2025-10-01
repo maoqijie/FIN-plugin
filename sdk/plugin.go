@@ -93,6 +93,7 @@ type ContextOptions struct {
 	InterworkInfoFunc   func() InterworkInfo
 	GameUtilsProvider   func() *GameUtils
 	PlayerManagerProvider func() *PlayerManager
+	PacketWaiterProvider func() *PacketWaiter
 	ConsoleRegistrar    func(ConsoleCommand) error
 	Logger              func(format string, args ...interface{})
 	RegisterPreload     func(PreloadHandler) error
@@ -102,6 +103,7 @@ type ContextOptions struct {
 	RegisterChat        func(ChatHandler) error
 	RegisterFrameExit   func(FrameExitHandler) error
 	RegisterPacket      func(PacketHandler, []uint32) error
+	RegisterPacketAll   func(PacketHandler) error
 }
 
 type Context struct {
@@ -310,4 +312,21 @@ func (c *Context) PlayerManager() *PlayerManager {
 		return nil
 	}
 	return c.opts.PlayerManagerProvider()
+}
+
+func (c *Context) PacketWaiter() *PacketWaiter {
+	if c == nil || c.opts.PacketWaiterProvider == nil {
+		return nil
+	}
+	return c.opts.PacketWaiterProvider()
+}
+
+func (c *Context) ListenPacketAll(handler PacketHandler) error {
+	if c == nil || c.opts.RegisterPacketAll == nil {
+		return fmt.Errorf("全部数据包监听未启用")
+	}
+	if handler == nil {
+		return fmt.Errorf("数据包事件处理器不能为空")
+	}
+	return c.opts.RegisterPacketAll(handler)
 }
