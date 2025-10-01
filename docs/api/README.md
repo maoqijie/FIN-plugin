@@ -51,6 +51,13 @@
 | `GetPluginAPIWithVersion(name, version)` | 获取指定版本的 API |
 | `ListPluginAPIs()` | 列出所有 API 插件 |
 
+### 数据管理
+
+| 方法 | 说明 |
+|------|------|
+| `DataPath()` | 获取插件数据目录（自动创建） |
+| `FormatDataPath(path...)` | 格式化数据文件路径 |
+
 ### 其他
 
 | 方法 | 说明 |
@@ -290,6 +297,7 @@
 - [Context](context.md) - 上下文方法详解
 - [事件监听](events.md) - 事件系统完整指南
 - [GameUtils](game-utils.md) - 游戏交互详细文档
+- [插件数据](data-management.md) - 数据目录管理详细指南
 - [Utils](utils.md) - 工具方法使用指南
 - [Translator](translator.md) - 文本翻译完整文档
 - [Console](console.md) - 控制台输出详解

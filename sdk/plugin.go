@@ -2,6 +2,8 @@ package sdk
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -418,4 +420,64 @@ func (c *Context) ListPluginAPIs() []PluginAPIInfo {
 		return []PluginAPIInfo{}
 	}
 	return registry.List()
+}
+
+// DataPath 获取插件数据目录路径
+// 自动创建并返回插件专属数据文件夹路径
+// 默认为 "plugins/{插件名}/"
+//
+// 示例:
+//   dataPath := ctx.DataPath()
+//   // 返回: "plugins/my-plugin/"
+func (c *Context) DataPath() string {
+	if c == nil {
+		return ""
+	}
+	pluginName := c.PluginName()
+	if pluginName == "" {
+		pluginName = "unknown"
+	}
+
+	dataPath := filepath.Join("plugins", pluginName)
+
+	// 确保目录存在
+	os.MkdirAll(dataPath, 0755)
+
+	return dataPath
+}
+
+// FormatDataPath 格式化数据文件路径
+// 方便地生成插件内部文件路径
+//
+// path: 相对于插件数据目录的路径片段
+// 返回: 完整的文件路径
+//
+// 示例:
+//   // 获取配置文件路径
+//   configPath := ctx.FormatDataPath("config.json")
+//   // 返回: "plugins/my-plugin/config.json"
+//
+//   // 获取子目录文件路径
+//   playerDataPath := ctx.FormatDataPath("players", "steve.json")
+//   // 返回: "plugins/my-plugin/players/steve.json"
+func (c *Context) FormatDataPath(path ...string) string {
+	if c == nil {
+		return ""
+	}
+
+	// 获取插件数据目录
+	dataPath := c.DataPath()
+
+	// 拼接路径
+	if len(path) == 0 {
+		return dataPath
+	}
+
+	fullPath := filepath.Join(append([]string{dataPath}, path...)...)
+
+	// 确保父目录存在
+	parentDir := filepath.Dir(fullPath)
+	os.MkdirAll(parentDir, 0755)
+
+	return fullPath
 }

@@ -30,6 +30,7 @@
 
 #### 数据管理
 
+- **[插件数据](api/data-management.md)** - 数据目录管理、文件路径格式化
 - **[Config](api/config.md)** - 配置文件管理、版本控制、验证
 - **[TempJSON](api/tempjson.md)** - 高性能 JSON 缓存管理
 - **[PlayerManager](api/player-manager.md)** - 玩家信息查询和操作
