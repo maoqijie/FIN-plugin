@@ -71,9 +71,9 @@ func (g *GameUtils) GetTarget(target string, timeout float64) ([]string, error) 
 
 	names := []string{}
 	for i := 0; i < results[0].Len(); i++ {
-		item := results[0].Index(i)
-		// 尝试从结构体中提取玩家名称（通常在 PlayerName 或其他字段）
-		// 这里我们只返回空切片，具体实现需要解析 TargetQueryingInfo
+		_ = results[0].Index(i)
+		// TODO: 从结构体中提取玩家名称
+		// 当前返回空切片，需要解析 TargetQueryingInfo 结构
 	}
 
 	return names, nil
