@@ -92,6 +92,7 @@ type ContextOptions struct {
 	QQInfoFunc          func() QQInfo
 	InterworkInfoFunc   func() InterworkInfo
 	GameUtilsProvider   func() *GameUtils
+	PlayerManagerProvider func() *PlayerManager
 	ConsoleRegistrar    func(ConsoleCommand) error
 	Logger              func(format string, args ...interface{})
 	RegisterPreload     func(PreloadHandler) error
@@ -302,4 +303,11 @@ func (c *Context) Config(configDir ...string) *Config {
 
 func (c *Context) TempJSON(defaultDir ...string) *TempJSON {
 	return NewTempJSON(defaultDir...)
+}
+
+func (c *Context) PlayerManager() *PlayerManager {
+	if c == nil || c.opts.PlayerManagerProvider == nil {
+		return nil
+	}
+	return c.opts.PlayerManagerProvider()
 }
