@@ -89,25 +89,26 @@ type InterworkInfo struct {
 }
 
 type ContextOptions struct {
-	PluginName          string
-	BotInfoFunc         func() BotInfo
-	ServerInfoFunc      func() ServerInfo
-	QQInfoFunc          func() QQInfo
-	InterworkInfoFunc   func() InterworkInfo
-	GameUtilsProvider   func() *GameUtils
+	PluginName            string
+	BotInfoFunc           func() BotInfo
+	ServerInfoFunc        func() ServerInfo
+	QQInfoFunc            func() QQInfo
+	InterworkInfoFunc     func() InterworkInfo
+	GameUtilsProvider     func() *GameUtils
 	PlayerManagerProvider func() *PlayerManager
-	PacketWaiterProvider func() *PacketWaiter
-	APIRegistryProvider func() *PluginAPIRegistry
-	ConsoleRegistrar    func(ConsoleCommand) error
-	Logger              func(format string, args ...interface{})
-	RegisterPreload     func(PreloadHandler) error
-	RegisterActive      func(ActiveHandler) error
-	RegisterPlayerJoin  func(PlayerEventHandler) error
-	RegisterPlayerLeave func(PlayerEventHandler) error
-	RegisterChat        func(ChatHandler) error
-	RegisterFrameExit   func(FrameExitHandler) error
-	RegisterPacket      func(PacketHandler, []uint32) error
-	RegisterPacketAll   func(PacketHandler) error
+	PacketWaiterProvider  func() *PacketWaiter
+	APIRegistryProvider   func() *PluginAPIRegistry
+	ConsoleRegistrar      func(ConsoleCommand) error
+	Logger                func(format string, args ...interface{})
+	RegisterPreload       func(PreloadHandler) error
+	RegisterActive        func(ActiveHandler) error
+	RegisterPlayerJoin    func(PlayerEventHandler) error
+	RegisterPlayerLeave   func(PlayerEventHandler) error
+	RegisterChat          func(ChatHandler) error
+	RegisterFrameExit     func(FrameExitHandler) error
+	RegisterPacket        func(PacketHandler, []uint32) error
+	RegisterPacketAll     func(PacketHandler) error
+	CancelChatMessage     func(sender, message string) // 取消聊天消息转发到 QQ
 }
 
 type Context struct {
@@ -481,4 +482,23 @@ func (c *Context) FormatDataPath(path ...string) string {
 	os.MkdirAll(parentDir, 0755)
 
 	return fullPath
+}
+
+// CancelMessage 取消聊天消息转发到 QQ 群
+// 用于插件拦截特定消息，防止转发（例如商店交互消息）
+//
+// sender: 消息发送者
+// message: 消息内容
+//
+// 示例:
+//   func (p *ShopPlugin) onChat(event sdk.ChatEvent) {
+//       if event.Message == "购买" {
+//           p.ctx.CancelMessage(event.Sender, event.Message)
+//       }
+//   }
+func (c *Context) CancelMessage(sender, message string) {
+	if c == nil || c.opts.CancelChatMessage == nil {
+		return
+	}
+	c.opts.CancelChatMessage(sender, message)
 }
