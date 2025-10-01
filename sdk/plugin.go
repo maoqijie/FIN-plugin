@@ -3,8 +3,6 @@ package sdk
 import (
 	"fmt"
 	"strings"
-
-	"github.com/Yeah114/FunInterwork/bot/core/minecraft/protocol/packet"
 )
 
 type Plugin interface {
@@ -35,7 +33,7 @@ type PlayerEvent struct {
 	EntityUniqueID  int64
 	EntityRuntimeID uint64
 	BuildPlatform   int32
-	Raw             *packet.PlayerList
+	Raw             any
 	EntryIndex      int
 }
 
@@ -46,7 +44,7 @@ type ChatEvent struct {
 	Message    string
 	TextType   byte
 	Parameters []string
-	Raw        *packet.Text
+	Raw        any
 }
 
 type ChatHandler func(ChatEvent)
@@ -60,7 +58,7 @@ type FrameExitHandler func(FrameExitEvent)
 
 type PacketEvent struct {
 	ID  uint32
-	Raw packet.Packet
+	Raw any
 }
 
 type PacketHandler func(PacketEvent)

@@ -154,7 +154,7 @@ ctx.RegisterConsoleCommand(sdk.ConsoleCommand{
 
 ### 事件监听
 
-`sdk.Context` 已内置与 ToolDelta 类似的事件注册接口，所有监听方法会在插件重载时自动清理：
+`sdk.Context` 已内置与 ToolDelta 类似的事件注册接口，所有监听方法会在插件重载时自动清理。默认情况下依赖公开仓库 `github.com/maoqijie/FIN-plugin`，若 `go mod tidy` 无法访问远端，主程序会自动写入本地 `replace` 规则作为回退：
 
 - `ListenPreload(func())`：插件加载完成且尚未连接服务器时触发一次。
 - `ListenActive(func())`：插件启动成功、互通链路就绪后触发。
