@@ -47,9 +47,10 @@ type ChatEvent struct {
 	TextType   byte
 	Parameters []string
 	Raw        any
+	Cancelled  bool // 插件可设置为 true 来取消事件传播（如取消转发到 QQ）
 }
 
-type ChatHandler func(ChatEvent)
+type ChatHandler func(*ChatEvent)
 
 type FrameExitEvent struct {
 	Signal string

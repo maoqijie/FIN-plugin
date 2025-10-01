@@ -118,6 +118,10 @@ func (g *GameUtils) GetPos(target string) (*Position, error) {
 
 	// 解析第一个结果
 	firstResult := results[0].Index(0)
+	// 如果是指针，需要解引用
+	if firstResult.Kind() == reflect.Ptr {
+		firstResult = firstResult.Elem()
+	}
 
 	// 提取 Position 字段
 	posField := firstResult.FieldByName("Position")
@@ -189,6 +193,9 @@ func (g *GameUtils) GetItem(target, itemName string, itemSpecialID int) (int, er
 
 	// 从 CommandOutput 提取 SuccessCount
 	output := results[0]
+	if output.Kind() == reflect.Ptr {
+		output = output.Elem()
+	}
 	successCount := output.FieldByName("SuccessCount").Int()
 
 	return int(successCount), nil
@@ -246,12 +253,18 @@ func (g *GameUtils) GetScore(scbName, target string, timeout float64) (int, erro
 
 	// 从 CommandOutput.OutputMessages[0].Parameters[0] 提取分数
 	output := results[0]
+	if output.Kind() == reflect.Ptr {
+		output = output.Elem()
+	}
 	outputMsgs := output.FieldByName("OutputMessages")
 	if outputMsgs.Len() == 0 {
 		return 0, fmt.Errorf("无法获取分数")
 	}
 
 	firstMsg := outputMsgs.Index(0)
+	if firstMsg.Kind() == reflect.Ptr {
+		firstMsg = firstMsg.Elem()
+	}
 	parameters := firstMsg.FieldByName("Parameters")
 	if parameters.Len() == 0 {
 		return 0, fmt.Errorf("无法获取分数参数")
@@ -317,6 +330,9 @@ func (g *GameUtils) IsCmdSuccess(cmd string, timeout float64) (bool, error) {
 
 	// 检查 SuccessCount
 	output := results[0]
+	if output.Kind() == reflect.Ptr {
+		output = output.Elem()
+	}
 	successCount := output.FieldByName("SuccessCount").Int()
 
 	return successCount > 0, nil
