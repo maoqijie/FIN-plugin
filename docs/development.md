@@ -2,7 +2,7 @@
 
 欢迎使用 FunInterWork 插件框架！
 
-> **注意**：文档已重组为模块化结构，方便查阅。如需查看完整文档，请参考 [development-full.md](development-full.md)。
+> **注意**：文档已重组为模块化结构，方便查阅。各模块文档位于 `getting-started/`、`api/` 和 `advanced/` 目录。
 
 ## 📚 快速导航
 
@@ -131,5 +131,3 @@ type Plugin interface {
 ---
 
 **参考 ToolDelta**：本插件框架参考了 ToolDelta 的 API 设计，提供类似的开发体验。
-
-**完整文档**：[development-full.md](development-full.md) 包含所有 API 的详细说明和示例。
