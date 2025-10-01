@@ -94,6 +94,7 @@ type ContextOptions struct {
 	GameUtilsProvider   func() *GameUtils
 	PlayerManagerProvider func() *PlayerManager
 	PacketWaiterProvider func() *PacketWaiter
+	APIRegistryProvider func() *PluginAPIRegistry
 	ConsoleRegistrar    func(ConsoleCommand) error
 	Logger              func(format string, args ...interface{})
 	RegisterPreload     func(PreloadHandler) error
@@ -329,4 +330,92 @@ func (c *Context) ListenPacketAll(handler PacketHandler) error {
 		return fmt.Errorf("数据包事件处理器不能为空")
 	}
 	return c.opts.RegisterPacketAll(handler)
+}
+
+// GetPluginAPI 获取其他插件的 API
+// name: API 名称
+// 返回: 插件实例、API 版本、错误
+//
+// 示例:
+//   api, version, err := ctx.GetPluginAPI("example-api")
+//   if err != nil {
+//       return err
+//   }
+//   // 类型断言获取具体插件类型
+//   if examplePlugin, ok := api.(*ExamplePlugin); ok {
+//       examplePlugin.SomeMethod()
+//   }
+func (c *Context) GetPluginAPI(name string) (Plugin, PluginAPIVersion, error) {
+	if c == nil || c.opts.APIRegistryProvider == nil {
+		return nil, PluginAPIVersion{}, fmt.Errorf("插件 API 注册表未启用")
+	}
+	registry := c.opts.APIRegistryProvider()
+	if registry == nil {
+		return nil, PluginAPIVersion{}, fmt.Errorf("插件 API 注册表未初始化")
+	}
+	return registry.Get(name)
+}
+
+// GetPluginAPIWithVersion 获取指定版本的插件 API
+// name: API 名称
+// version: 所需版本（主版本号必须相同，次版本号必须大于等于）
+// 返回: 插件实例、错误
+//
+// 示例:
+//   api, err := ctx.GetPluginAPIWithVersion("example-api", sdk.PluginAPIVersion{0, 0, 1})
+//   if err != nil {
+//       return err
+//   }
+func (c *Context) GetPluginAPIWithVersion(name string, version PluginAPIVersion) (Plugin, error) {
+	if c == nil || c.opts.APIRegistryProvider == nil {
+		return nil, fmt.Errorf("插件 API 注册表未启用")
+	}
+	registry := c.opts.APIRegistryProvider()
+	if registry == nil {
+		return nil, fmt.Errorf("插件 API 注册表未初始化")
+	}
+	return registry.GetWithVersion(name, version)
+}
+
+// RegisterPluginAPI 注册当前插件为 API 插件（前置插件）
+// name: API 名称
+// version: API 版本
+// plugin: 插件实例（通常是 self）
+// 返回: 错误
+//
+// 注意: 应在 Init 方法中调用，确保在其他插件访问前完成注册
+//
+// 示例:
+//   func (p *ExamplePlugin) Init(ctx *sdk.Context) error {
+//       p.ctx = ctx
+//       return ctx.RegisterPluginAPI("example-api", sdk.PluginAPIVersion{0, 0, 1}, p)
+//   }
+func (c *Context) RegisterPluginAPI(name string, version PluginAPIVersion, plugin Plugin) error {
+	if c == nil || c.opts.APIRegistryProvider == nil {
+		return fmt.Errorf("插件 API 注册表未启用")
+	}
+	registry := c.opts.APIRegistryProvider()
+	if registry == nil {
+		return fmt.Errorf("插件 API 注册表未初始化")
+	}
+	return registry.Register(name, version, plugin)
+}
+
+// ListPluginAPIs 列出所有已注册的插件 API
+// 返回: API 信息列表
+//
+// 示例:
+//   apis := ctx.ListPluginAPIs()
+//   for _, api := range apis {
+//       ctx.Logf("API: %s, 版本: %s", api.Name, api.Version.String())
+//   }
+func (c *Context) ListPluginAPIs() []PluginAPIInfo {
+	if c == nil || c.opts.APIRegistryProvider == nil {
+		return []PluginAPIInfo{}
+	}
+	registry := c.opts.APIRegistryProvider()
+	if registry == nil {
+		return []PluginAPIInfo{}
+	}
+	return registry.List()
 }
