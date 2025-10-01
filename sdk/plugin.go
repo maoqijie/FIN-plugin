@@ -275,3 +275,7 @@ func (c *Context) GameUtils() *GameUtils {
 	}
 	return c.opts.GameUtilsProvider()
 }
+
+func (c *Context) Utils() *Utils {
+	return NewUtils()
+}

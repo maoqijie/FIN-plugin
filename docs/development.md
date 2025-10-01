@@ -96,6 +96,7 @@ SDK 将提供统一事件总线，插件可订阅或发送事件；综合插件�
 - `QQInfo()`：返回当前使用的 QQ 适配器、OneBot WS 地址及 AccessToken 配置状态。
 - `InterworkInfo()`：返回互通群别名与群号。每次调用都会复制一份映射，避免插件误改主进程数据。
 - `GameUtils()`：返回高级游戏交互接口，提供类似 ToolDelta 的游戏操作方法（详见下文）。
+- `Utils()`：返回实用工具方法，提供字符串格式化、类型转换、异步执行等常用功能（详见下文）。
 
 调用 `Context.Logf` 输出日志时会自动附带插件前缀；`Context.PluginName()` 可获取当前插件名称，便于打包或埋点。
 
@@ -289,6 +290,147 @@ func (p *plugin) Start() error {
 3. `GetTarget` 方法目前返回空切片，具体实现需要解析 querytarget 的 JSON 响应
 4. `IsOp` 通过尝试执行需要权限的命令来判断，可能不够准确
 5. 所有方法在 GameInterface 未初始化时会返回错误
+
+### Utils 实用工具方法
+
+`sdk.Context.Utils()` 提供类似 ToolDelta 的实用工具方法，用于字符串格式化、类型转换、异步执行等常用操作。
+
+#### 字符串与格式化
+
+- **SimpleFormat(kw map[string]string, sub string)** - 简单的字符串格式化替换
+  - `kw`：替换字典，键为占位符（不含 `{}`），值为替换内容
+  - `sub`：要格式化的字符串，使用 `{key}` 作为占位符
+  - 示例：
+    ```go
+    kw := map[string]string{"name": "玩家1", "score": "100"}
+    result := utils.SimpleFormat(kw, "玩家 {name} 的分数是 {score}")
+    // 返回: "玩家 玩家1 的分数是 100"
+    ```
+
+- **ToPlayerSelector(playerName string)** - 将玩家名转换为目标选择器
+  - 示例：
+    ```go
+    selector := utils.ToPlayerSelector("玩家1")
+    // 返回: "@a[name=\"玩家1\"]"
+    ```
+
+#### 类型转换
+
+- **TryInt(input interface{})** - 尝试将输入转换为整数
+  - 支持 int、uint、float、string、bool 等类型
+  - 返回：`(int, bool)` 转换结果和是否成功
+  - 示例：
+    ```go
+    if value, ok := utils.TryInt("123"); ok {
+        fmt.Println("转换成功:", value)
+    }
+    ```
+
+#### 列表操作
+
+- **FillListIndex(list, reference []interface{}, defaultValue interface{})** - 用默认值填充列表
+- **FillStringList(list []string, referenceLen int, defaultValue string)** - 填充字符串列表（类型安全）
+- **FillIntList(list []int, referenceLen int, defaultValue int)** - 填充整数列表（类型安全）
+
+#### 异步与并发
+
+- **CreateResultCallback(timeout float64)** - 创建一对回调锁（getter 和 setter）
+  - 用于异步操作中等待结果
+  - `timeout`：超时时间（秒），0 表示永不超时
+  - 返回：getter 函数和 setter 函数
+  - 示例：
+    ```go
+    getter, setter := utils.CreateResultCallback(5.0)
+
+    // 在协程中等待结果
+    go func() {
+        result, ok := getter()
+        if ok {
+            fmt.Println("收到结果:", result)
+        } else {
+            fmt.Println("超时或未设置")
+        }
+    }()
+
+    // 在另一个地方设置结果
+    time.Sleep(2 * time.Second)
+    setter("操作完成")
+    ```
+
+- **RunAsync(fn func())** - 在新的 goroutine 中运行函数
+- **RunAsyncWithResult(fn func() interface{})** - 异步运行并通过 channel 返回结果
+- **Gather(fns ...func() interface{})** - 并行运行多个函数并收集结果
+  - 示例：
+    ```go
+    results := utils.Gather(
+        func() interface{} { return "结果1" },
+        func() interface{} { return "结果2" },
+        func() interface{} { return "结果3" },
+    )
+    ```
+
+#### 定时器
+
+- **NewTimer(interval float64, fn func())** - 创建定时器
+  - `interval`：执行间隔（秒）
+  - `fn`：要定时执行的函数
+  - 返回：Timer 实例，支持 `Start()`、`Stop()`、`IsRunning()` 方法
+  - 示例：
+    ```go
+    timer := utils.NewTimer(5.0, func() {
+        fmt.Println("每 5 秒执行一次")
+    })
+    timer.Start()
+    defer timer.Stop()
+    ```
+
+#### 其他工具方法
+
+- **Sleep(seconds float64)** - 睡眠指定秒数
+- **Contains(slice []string, item string)** - 检查字符串切片是否包含元素
+- **ContainsInt(slice []int, item int)** - 检查整数切片是否包含元素
+- **Max(a, b int)** - 返回较大值
+- **Min(a, b int)** - 返回较小值
+- **Clamp(value, min, max int)** - 将值限制在指定范围内
+
+#### 完整示例
+
+```go
+func (p *plugin) Start() error {
+    utils := p.ctx.Utils()
+
+    // 字符串格式化
+    msg := utils.SimpleFormat(map[string]string{
+        "server": "我的服务器",
+        "count": "10",
+    }, "欢迎来到 {server}，当前在线 {count} 人")
+
+    // 类型转换
+    if count, ok := utils.TryInt("123"); ok {
+        p.ctx.Logf("玩家数量: %d", count)
+    }
+
+    // 异步回调
+    getter, setter := utils.CreateResultCallback(10.0)
+    go func() {
+        // 模拟异步操作
+        utils.Sleep(3.0)
+        setter("任务完成")
+    }()
+
+    if result, ok := getter(); ok {
+        p.ctx.Logf("异步结果: %v", result)
+    }
+
+    // 定时任务
+    timer := utils.NewTimer(60.0, func() {
+        p.ctx.Logf("定时任务执行")
+    })
+    timer.Start()
+
+    return nil
+}
+```
 
 ### ToolDelta 插件主体速览
 
