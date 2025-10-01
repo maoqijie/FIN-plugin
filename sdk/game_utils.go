@@ -16,6 +16,15 @@ type Position struct {
 	YRot      float32
 }
 
+// InventorySlot 表示背包中的一个物品槽位
+type InventorySlot struct {
+	Slot     int    // 槽位编号
+	ItemID   string // 物品 ID (如 "minecraft:diamond")
+	ItemName string // 物品名称
+	Count    int    // 物品数量
+	Aux      int    // 物品附加值（如工具耐久度）
+}
+
 // GameUtils 提供高级游戏交互接口，类似 ToolDelta 的 game_utils
 type GameUtils struct {
 	gi interface{} // 存储 *game_interface.GameInterface
@@ -71,9 +80,20 @@ func (g *GameUtils) GetTarget(target string, timeout float64) ([]string, error) 
 
 	names := []string{}
 	for i := 0; i < results[0].Len(); i++ {
-		_ = results[0].Index(i)
-		// TODO: 从结构体中提取玩家名称
-		// 当前返回空切片，需要解析 TargetQueryingInfo 结构
+		item := results[0].Index(i)
+		// 如果是指针，需要解引用
+		if item.Kind() == reflect.Ptr {
+			item = item.Elem()
+		}
+
+		// 提取 EntityName 字段
+		nameField := item.FieldByName("EntityName")
+		if nameField.IsValid() && nameField.Kind() == reflect.String {
+			name := nameField.String()
+			if name != "" {
+				names = append(names, name)
+			}
+		}
 	}
 
 	return names, nil
@@ -677,6 +697,214 @@ func (g *GameUtils) SendPacket(packetID uint32, packet interface{}) error {
 	})
 	if len(results) > 0 && !results[0].IsNil() {
 		return fmt.Errorf("发送数据包失败: %v", results[0].Interface())
+	}
+
+	return nil
+}
+
+// GetInventory 查询玩家背包信息
+// selector: 目标玩家名称或选择器
+// 返回: 背包槽位列表，包含物品 ID、数量等信息
+//
+// 注意: 这个方法需要服务器支持背包查询命令或数据包
+//
+// 示例:
+//   slots, err := ctx.GameUtils().GetInventory("Steve")
+//   if err == nil {
+//       for _, slot := range slots {
+//           ctx.Logf("槽位 %d: %s x%d", slot.Slot, slot.ItemID, slot.Count)
+//       }
+//   }
+func (g *GameUtils) GetInventory(selector string) ([]InventorySlot, error) {
+	giVal := reflect.ValueOf(g.gi)
+	if !giVal.IsValid() || giVal.IsNil() {
+		return nil, fmt.Errorf("gameInterface 未初始化")
+	}
+
+	// 使用 replaceitem 测试每个槽位来获取背包信息
+	// 这是一种间接方法，因为 Minecraft 基岩版没有直接的背包查询命令
+	// 更好的实现需要拦截 InventoryContent 数据包
+
+	// 返回空实现，提示需要数据包拦截
+	return nil, fmt.Errorf("GetInventory 需要通过拦截 InventoryContent 数据包实现，当前版本暂不支持")
+}
+
+// GetBlock 获取指定坐标的方块类型
+// x, y, z: 方块坐标
+// 返回: 方块 ID (如 "minecraft:stone")
+//
+// 示例:
+//   blockID, err := ctx.GameUtils().GetBlock(100, 64, 100)
+//   if err == nil {
+//       ctx.Logf("方块类型: %s", blockID)
+//   }
+func (g *GameUtils) GetBlock(x, y, z int) (string, error) {
+	giVal := reflect.ValueOf(g.gi)
+	if !giVal.IsValid() || giVal.IsNil() {
+		return "", fmt.Errorf("gameInterface 未初始化")
+	}
+
+	commandsMethod := giVal.MethodByName("Commands")
+	if !commandsMethod.IsValid() {
+		return "", fmt.Errorf("gameInterface 不支持 Commands 方法")
+	}
+
+	commandsVal := commandsMethod.Call(nil)
+	if len(commandsVal) == 0 || !commandsVal[0].IsValid() {
+		return "", fmt.Errorf("Commands 返回值无效")
+	}
+
+	// 使用 testforblock 命令来检测方块
+	// 由于没有直接的查询命令，这里使用 setblock 的 keep 模式来检测
+	cmd := fmt.Sprintf("testforblock %d %d %d air", x, y, z)
+
+	sendMethod := commandsVal[0].MethodByName("SendWSCommandWithResp")
+	if !sendMethod.IsValid() {
+		return "", fmt.Errorf("Commands 不支持 SendWSCommandWithResp 方法")
+	}
+
+	results := sendMethod.Call([]reflect.Value{reflect.ValueOf(cmd)})
+	if len(results) != 2 {
+		return "", fmt.Errorf("SendWSCommandWithResp 返回值数量不正确")
+	}
+
+	// 如果成功，说明是空气方块
+	if results[1].IsNil() {
+		return "minecraft:air", nil
+	}
+
+	// 无法直接获取方块 ID，需要通过其他方式
+	// 返回提示信息
+	return "", fmt.Errorf("GetBlock 需要通过拦截 BlockUpdate 数据包或使用结构方块实现，当前版本暂不支持精确查询")
+}
+
+// EffectOptions 药水效果配置选项
+type EffectOptions struct {
+	Duration      int  // 持续时间（秒）
+	Level         int  // 效果等级（0 表示 I 级）
+	HideParticles bool // 是否隐藏粒子效果
+}
+
+// SetEffect 给玩家添加药水效果
+// target: 目标玩家选择器或名称
+// effectID: 效果 ID（如 1=速度, 2=缓慢, 5=力量, 10=再生）
+// opts: 效果配置选项
+//
+// 常用效果 ID:
+//   1  - speed (速度)
+//   2  - slowness (缓慢)
+//   3  - haste (急迫)
+//   4  - mining_fatigue (挖掘疲劳)
+//   5  - strength (力量)
+//   6  - instant_health (瞬间治疗)
+//   8  - jump_boost (跳跃提升)
+//   10 - regeneration (再生)
+//   11 - resistance (抗性提升)
+//   12 - fire_resistance (抗火)
+//   13 - water_breathing (水下呼吸)
+//   14 - invisibility (隐身)
+//
+// 示例:
+//   ctx.GameUtils().SetEffect("@a", 1, EffectOptions{
+//       Duration:      60,
+//       Level:         1,
+//       HideParticles: true,
+//   })
+func (g *GameUtils) SetEffect(target string, effectID int, opts EffectOptions) error {
+	giVal := reflect.ValueOf(g.gi)
+	if !giVal.IsValid() || giVal.IsNil() {
+		return fmt.Errorf("gameInterface 未初始化")
+	}
+
+	commandsMethod := giVal.MethodByName("Commands")
+	if !commandsMethod.IsValid() {
+		return fmt.Errorf("gameInterface 不支持 Commands 方法")
+	}
+
+	commandsVal := commandsMethod.Call(nil)
+	if len(commandsVal) == 0 || !commandsVal[0].IsValid() {
+		return fmt.Errorf("Commands 返回值无效")
+	}
+
+	// 设置默认值
+	if opts.Duration <= 0 {
+		opts.Duration = 30 // 默认 30 秒
+	}
+	if opts.Level < 0 {
+		opts.Level = 0
+	}
+
+	// 构造 effect 命令
+	hideParticle := ""
+	if opts.HideParticles {
+		hideParticle = " true"
+	}
+
+	cmd := fmt.Sprintf("effect \"%s\" %d %d %d%s", target, effectID, opts.Duration, opts.Level, hideParticle)
+
+	sendMethod := commandsVal[0].MethodByName("SendWSCommand")
+	if !sendMethod.IsValid() {
+		return fmt.Errorf("Commands 不支持 SendWSCommand 方法")
+	}
+
+	results := sendMethod.Call([]reflect.Value{reflect.ValueOf(cmd)})
+	if len(results) != 1 {
+		return fmt.Errorf("SendWSCommand 返回值数量不正确")
+	}
+
+	if !results[0].IsNil() {
+		return fmt.Errorf("添加药水效果失败: %v", results[0].Interface())
+	}
+
+	return nil
+}
+
+// ClearEffect 清除玩家的药水效果
+// target: 目标玩家选择器或名称
+// effectID: 效果 ID（可选，如果不指定则清除所有效果）
+//
+// 示例:
+//   // 清除特定效果
+//   ctx.GameUtils().ClearEffect("Steve", 1)
+//   // 清除所有效果
+//   ctx.GameUtils().ClearEffect("Steve", -1)
+func (g *GameUtils) ClearEffect(target string, effectID int) error {
+	giVal := reflect.ValueOf(g.gi)
+	if !giVal.IsValid() || giVal.IsNil() {
+		return fmt.Errorf("gameInterface 未初始化")
+	}
+
+	commandsMethod := giVal.MethodByName("Commands")
+	if !commandsMethod.IsValid() {
+		return fmt.Errorf("gameInterface 不支持 Commands 方法")
+	}
+
+	commandsVal := commandsMethod.Call(nil)
+	if len(commandsVal) == 0 || !commandsVal[0].IsValid() {
+		return fmt.Errorf("Commands 返回值无效")
+	}
+
+	var cmd string
+	if effectID < 0 {
+		// 清除所有效果
+		cmd = fmt.Sprintf("effect \"%s\" clear", target)
+	} else {
+		// 清除特定效果
+		cmd = fmt.Sprintf("effect \"%s\" clear %d", target, effectID)
+	}
+
+	sendMethod := commandsVal[0].MethodByName("SendWSCommand")
+	if !sendMethod.IsValid() {
+		return fmt.Errorf("Commands 不支持 SendWSCommand 方法")
+	}
+
+	results := sendMethod.Call([]reflect.Value{reflect.ValueOf(cmd)})
+	if len(results) != 1 {
+		return fmt.Errorf("SendWSCommand 返回值数量不正确")
+	}
+
+	if !results[0].IsNil() {
+		return fmt.Errorf("清除药水效果失败: %v", results[0].Interface())
 	}
 
 	return nil
