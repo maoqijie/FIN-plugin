@@ -91,6 +91,7 @@ type ContextOptions struct {
 	ServerInfoFunc      func() ServerInfo
 	QQInfoFunc          func() QQInfo
 	InterworkInfoFunc   func() InterworkInfo
+	GameUtilsProvider   func() *GameUtils
 	ConsoleRegistrar    func(ConsoleCommand) error
 	Logger              func(format string, args ...interface{})
 	RegisterPreload     func(PreloadHandler) error
@@ -266,4 +267,11 @@ func (c *Context) ListenPacket(handler PacketHandler, packetIDs ...uint32) error
 		return fmt.Errorf("数据包事件处理器不能为空")
 	}
 	return c.opts.RegisterPacket(handler, packetIDs)
+}
+
+func (c *Context) GameUtils() *GameUtils {
+	if c == nil || c.opts.GameUtilsProvider == nil {
+		return nil
+	}
+	return c.opts.GameUtilsProvider()
 }
