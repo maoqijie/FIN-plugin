@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -10,91 +11,141 @@ import (
 )
 
 type ShopPlugin struct {
-	ctx    *sdk.Context
-	config *ShopConfig
-	// 存储等待玩家输入的状态
+	ctx             *sdk.Context
+	scoreboardName  string
+	sellItems       map[string]*ShopItem
+	buybackItems    map[string]*ShopItem
 	waitingForInput map[string]*PlayerInputState
-}
-
-// ShopConfig 商店配置
-type ShopConfig struct {
-	ScoreboardName string                `json:"货币计分板名"`
-	SellItems      map[string]*ShopItem  `json:"出售"`
-	BuybackItems   map[string]*ShopItem  `json:"收购"`
 }
 
 // ShopItem 商店物品
 type ShopItem struct {
-	ID    string `json:"ID"`    // 物品标识符（如 minecraft:diamond）
-	Price int    `json:"价格"`  // 单价
+	ID    string `json:"ID"`
+	Price int    `json:"价格"`
 }
 
 // PlayerInputState 玩家输入状态
 type PlayerInputState struct {
-	Action     string    // "buy" 或 "sell"
-	ItemName   string    // 物品名称
-	Item       *ShopItem // 物品信息
-	WaitingFor string    // "amount" 表示等待输入数量
-	Timestamp  time.Time // 超时控制
+	Action     string
+	ItemName   string
+	Item       *ShopItem
+	WaitingFor string
+	Timestamp  time.Time
 }
 
 func (p *ShopPlugin) Init(ctx *sdk.Context) error {
 	p.ctx = ctx
 	p.waitingForInput = make(map[string]*PlayerInputState)
 
-	// 加载配置
-	defaultConfig := &ShopConfig{
-		ScoreboardName: "money",
-		SellItems: map[string]*ShopItem{
-			"钻石": {
-				ID:    "minecraft:diamond",
-				Price: 100,
+	// 构建默认配置
+	defaultConfig := map[string]interface{}{
+		"货币计分板名": "money",
+		"出售": map[string]interface{}{
+			"钻石": map[string]interface{}{
+				"ID":  "minecraft:diamond",
+				"价格": 100,
 			},
-			"铁锭": {
-				ID:    "minecraft:iron_ingot",
-				Price: 10,
+			"铁锭": map[string]interface{}{
+				"ID":  "minecraft:iron_ingot",
+				"价格": 10,
 			},
-			"金锭": {
-				ID:    "minecraft:gold_ingot",
-				Price: 50,
+			"金锭": map[string]interface{}{
+				"ID":  "minecraft:gold_ingot",
+				"价格": 50,
 			},
-			"绿宝石": {
-				ID:    "minecraft:emerald",
-				Price: 200,
+			"绿宝石": map[string]interface{}{
+				"ID":  "minecraft:emerald",
+				"价格": 200,
 			},
 		},
-		BuybackItems: map[string]*ShopItem{
-			"钻石": {
-				ID:    "minecraft:diamond",
-				Price: 80,
+		"收购": map[string]interface{}{
+			"钻石": map[string]interface{}{
+				"ID":  "minecraft:diamond",
+				"价格": 80,
 			},
-			"铁锭": {
-				ID:    "minecraft:iron_ingot",
-				Price: 8,
+			"铁锭": map[string]interface{}{
+				"ID":  "minecraft:iron_ingot",
+				"价格": 8,
 			},
-			"金锭": {
-				ID:    "minecraft:gold_ingot",
-				Price: 40,
+			"金锭": map[string]interface{}{
+				"ID":  "minecraft:gold_ingot",
+				"价格": 40,
 			},
-			"绿宝石": {
-				ID:    "minecraft:emerald",
-				Price: 160,
+			"绿宝石": map[string]interface{}{
+				"ID":  "minecraft:emerald",
+				"价格": 160,
 			},
 		},
 	}
 
+	// 加载配置
 	config, err := p.ctx.Config().GetConfig("config.json", defaultConfig)
 	if err != nil {
 		return fmt.Errorf("加载配置失败: %v", err)
 	}
 
-	p.config = config.(*ShopConfig)
+	// 解析配置
+	if err := p.parseConfig(config); err != nil {
+		return fmt.Errorf("解析配置失败: %v", err)
+	}
 
 	// 监听聊天消息
 	ctx.ListenChat(p.onChat)
 
-	p.ctx.Logf("商店插件已加载，货币计分板: %s", p.config.ScoreboardName)
+	p.ctx.Logf("商店插件已加载，货币计分板: %s", p.scoreboardName)
 	return nil
+}
+
+func (p *ShopPlugin) parseConfig(config map[string]interface{}) error {
+	// 解析计分板名称
+	if name, ok := config["货币计分板名"].(string); ok {
+		p.scoreboardName = name
+	} else {
+		p.scoreboardName = "money"
+	}
+
+	// 解析出售物品
+	p.sellItems = make(map[string]*ShopItem)
+	if sellMap, ok := config["出售"].(map[string]interface{}); ok {
+		for itemName, itemData := range sellMap {
+			if item, err := p.parseShopItem(itemData); err == nil {
+				p.sellItems[itemName] = item
+			}
+		}
+	}
+
+	// 解析收购物品
+	p.buybackItems = make(map[string]*ShopItem)
+	if buyMap, ok := config["收购"].(map[string]interface{}); ok {
+		for itemName, itemData := range buyMap {
+			if item, err := p.parseShopItem(itemData); err == nil {
+				p.buybackItems[itemName] = item
+			}
+		}
+	}
+
+	return nil
+}
+
+func (p *ShopPlugin) parseShopItem(data interface{}) (*ShopItem, error) {
+	itemMap, ok := data.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("无效的物品数据")
+	}
+
+	item := &ShopItem{}
+
+	if id, ok := itemMap["ID"].(string); ok {
+		item.ID = id
+	}
+
+	if price, ok := itemMap["价格"].(float64); ok {
+		item.Price = int(price)
+	} else if price, ok := itemMap["价格"].(int); ok {
+		item.Price = price
+	}
+
+	return item, nil
 }
 
 func (p *ShopPlugin) Start() error {
@@ -114,13 +165,16 @@ func (p *ShopPlugin) Stop() error {
 }
 
 func (p *ShopPlugin) onChat(event sdk.ChatEvent) {
-	playerName := event.PlayerName
+	playerName := event.Sender
 	message := strings.TrimSpace(event.Message)
 
 	// 检查是否有等待输入的状态
 	if state, exists := p.waitingForInput[playerName]; exists {
 		if state.WaitingFor == "amount" {
 			p.handleAmountInput(playerName, message, state)
+			return
+		} else if state.WaitingFor == "item" {
+			p.handleItemSelection(playerName, message, state)
 			return
 		}
 	}
@@ -131,13 +185,6 @@ func (p *ShopPlugin) onChat(event sdk.ChatEvent) {
 		p.showShop(playerName, "buy")
 	case "收购", "sell":
 		p.showShop(playerName, "sell")
-	default:
-		// 检查是否是选择物品
-		if state, exists := p.waitingForInput[playerName]; exists {
-			if state.WaitingFor == "item" {
-				p.handleItemSelection(playerName, message, state)
-			}
-		}
 	}
 }
 
@@ -147,10 +194,10 @@ func (p *ShopPlugin) showShop(playerName string, action string) {
 	var title string
 
 	if action == "buy" {
-		items = p.config.SellItems
+		items = p.sellItems
 		title = "§a=== 商店购买列表 ==="
 	} else {
-		items = p.config.BuybackItems
+		items = p.buybackItems
 		title = "§e=== 商店收购列表 ==="
 	}
 
@@ -179,9 +226,9 @@ func (p *ShopPlugin) showShop(playerName string, action string) {
 func (p *ShopPlugin) handleItemSelection(playerName string, input string, state *PlayerInputState) {
 	var items map[string]*ShopItem
 	if state.Action == "buy" {
-		items = p.config.SellItems
+		items = p.sellItems
 	} else {
-		items = p.config.BuybackItems
+		items = p.buybackItems
 	}
 
 	// 查找物品
@@ -230,7 +277,7 @@ func (p *ShopPlugin) executeBuy(playerName string, itemName string, item *ShopIt
 	totalPrice := item.Price * amount
 
 	// 获取玩家余额
-	balance, err := p.ctx.GameUtils().GetScore(p.config.ScoreboardName, playerName, 5.0)
+	balance, err := p.ctx.GameUtils().GetScore(p.scoreboardName, playerName, 5.0)
 	if err != nil {
 		p.ctx.GameUtils().SayTo(playerName, "§c无法获取你的余额")
 		p.ctx.Logf("获取余额失败: %v", err)
@@ -244,7 +291,7 @@ func (p *ShopPlugin) executeBuy(playerName string, itemName string, item *ShopIt
 	}
 
 	// 扣除积分
-	cmd := fmt.Sprintf("scoreboard players remove \"%s\" %s %d", playerName, p.config.ScoreboardName, totalPrice)
+	cmd := fmt.Sprintf("scoreboard players remove \"%s\" %s %d", playerName, p.scoreboardName, totalPrice)
 	p.ctx.GameUtils().SendCommand(cmd)
 
 	// 给予物品
@@ -285,7 +332,7 @@ func (p *ShopPlugin) executeSell(playerName string, itemName string, item *ShopI
 	p.ctx.GameUtils().SendCommand(clearCmd)
 
 	// 增加积分
-	addCmd := fmt.Sprintf("scoreboard players add \"%s\" %s %d", playerName, p.config.ScoreboardName, totalPrice)
+	addCmd := fmt.Sprintf("scoreboard players add \"%s\" %s %d", playerName, p.scoreboardName, totalPrice)
 	p.ctx.GameUtils().SendCommand(addCmd)
 
 	// 发送成功消息
@@ -294,7 +341,7 @@ func (p *ShopPlugin) executeSell(playerName string, itemName string, item *ShopI
 
 	// 获取新余额
 	p.ctx.Utils().Sleep(0.5) // 等待命令执行
-	balance, err := p.ctx.GameUtils().GetScore(p.config.ScoreboardName, playerName, 5.0)
+	balance, err := p.ctx.GameUtils().GetScore(p.scoreboardName, playerName, 5.0)
 	if err == nil {
 		p.ctx.GameUtils().SayTo(playerName, fmt.Sprintf("§7当前余额: §6%d §7积分", balance))
 	}
@@ -311,6 +358,22 @@ func (p *ShopPlugin) cleanupExpiredStates() {
 			p.ctx.GameUtils().SayTo(playerName, "§c商店操作已超时，请重新开始")
 		}
 	}
+}
+
+// 用于保存配置（示例）
+func (p *ShopPlugin) saveConfig() error {
+	config := map[string]interface{}{
+		"货币计分板名": p.scoreboardName,
+		"出售":      p.sellItems,
+		"收购":      p.buybackItems,
+	}
+
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return p.ctx.Config().SaveConfig("config.json", string(data))
 }
 
 func NewPlugin() sdk.Plugin {
