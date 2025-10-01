@@ -279,3 +279,7 @@ func (c *Context) GameUtils() *GameUtils {
 func (c *Context) Utils() *Utils {
 	return NewUtils()
 }
+
+func (c *Context) Translator() *Translator {
+	return NewTranslator()
+}

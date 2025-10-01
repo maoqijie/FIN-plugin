@@ -97,6 +97,7 @@ SDK 将提供统一事件总线，插件可订阅或发送事件；综合插件�
 - `InterworkInfo()`：返回互通群别名与群号。每次调用都会复制一份映射，避免插件误改主进程数据。
 - `GameUtils()`：返回高级游戏交互接口，提供类似 ToolDelta 的游戏操作方法（详见下文）。
 - `Utils()`：返回实用工具方法，提供字符串格式化、类型转换、异步执行等常用功能（详见下文）。
+- `Translator()`：返回游戏文本翻译器，将 Minecraft 文本键翻译为中文（详见下文）。
 
 调用 `Context.Logf` 输出日志时会自动附带插件前缀；`Context.PluginName()` 可获取当前插件名称，便于打包或埋点。
 
@@ -431,6 +432,108 @@ func (p *plugin) Start() error {
     return nil
 }
 ```
+
+### Translator 游戏文本翻译
+
+`sdk.Context.Translator()` 提供 Minecraft 游戏文本翻译功能，类似 ToolDelta 的 mc_translator。使用内置的中文翻译表将游戏文本键翻译为中文。
+
+#### 核心方法
+
+- **Translate(key string, args []interface{}, translateArgs bool)** - 翻译游戏文本
+  - `key`：要翻译的消息文本键（如 `"item.diamond.name"`）
+  - `args`：可选的翻译参数列表
+  - `translateArgs`：是否翻译参数项
+  - 示例：
+    ```go
+    // 简单翻译
+    msg := translator.Translate("item.diamond.name", nil, false)
+    // 返回: "钻石"
+
+    // 带参数翻译
+    msg := translator.Translate("death.attack.anvil", []interface{}{"SkyblueSuper"}, false)
+    // 返回: "SkyblueSuper 被坠落的铁砧压扁了"
+
+    // 翻译参数（参数以 % 开头会被翻译）
+    msg := translator.Translate(
+        "commands.enchant.invalidLevel",
+        []interface{}{"enchantment.mending", 6},
+        true,
+    )
+    // 返回: "经验修补 不支持等级 6"
+    ```
+
+#### 便捷方法
+
+- **TranslateSimple(key string)** - 简单翻译，不带参数
+- **TranslateWithArgs(key string, args ...interface{})** - 带参数翻译
+- **TranslateItemName(itemID string)** - 翻译物品名称
+- **TranslateBlockName(blockID string)** - 翻译方块名称
+- **TranslateEnchantment(enchantID string)** - 翻译附魔名称
+
+#### 管理方法
+
+- **Has(key string)** - 检查是否存在某个翻译键
+- **AddTranslation(key, value string)** - 添加自定义翻译
+- **AddTranslations(translations map[string]string)** - 批量添加翻译
+- **LoadFromLangFile(content string)** - 从 .lang 格式文件加载翻译
+
+#### 颜色代码处理
+
+- **ParseColorCodes(text string, stripCodes bool)** - 解析颜色代码
+- **StripColorCodes(text string)** - 移除所有颜色代码（§ 格式）
+
+#### 内置翻译
+
+内置翻译表包含常用的中文翻译：
+- 物品名称（钻石、绿宝石、铁锭等）
+- 方块名称（泥土、石头、原木等）
+- 死亡消息（被压扁、溺水、爆炸等）
+- 命令消息（语法错误、玩家不存在等）
+- 附魔名称（锋利、保护、效率等）
+- 游戏模式（生存、创造、冒险、旁观）
+
+#### 完整示例
+
+```go
+func (p *plugin) Start() error {
+    translator := p.ctx.Translator()
+
+    // 翻译物品名称
+    itemName := translator.TranslateItemName("diamond")
+    p.ctx.Logf("物品: %s", itemName) // 输出: 物品: 钻石
+
+    // 翻译死亡消息
+    deathMsg := translator.TranslateWithArgs(
+        "death.attack.anvil",
+        "玩家A",
+    )
+    p.ctx.Logf(deathMsg) // 输出: 玩家A 被坠落的铁砧压扁了
+
+    // 添加自定义翻译
+    translator.AddTranslation("custom.message", "这是自定义消息")
+    msg := translator.TranslateSimple("custom.message")
+
+    // 从文件加载翻译
+    langContent := `
+item.custom_item.name=自定义物品
+tile.custom_block.name=自定义方块
+`
+    translator.LoadFromLangFile(langContent)
+
+    // 移除颜色代码
+    colorText := "§c红色文本§r 普通文本"
+    plainText := translator.StripColorCodes(colorText)
+    p.ctx.Logf(plainText) // 输出: 红色文本 普通文本
+
+    return nil
+}
+```
+
+#### 支持的占位符
+
+Minecraft 使用以下格式的占位符：
+- `%s` - 简单占位符（按顺序替换）
+- `%1$s`, `%2$s` - 位置参数（指定顺序）
 
 ### ToolDelta 插件主体速览
 
