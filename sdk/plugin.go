@@ -299,3 +299,7 @@ func (c *Context) Config(configDir ...string) *Config {
 	}
 	return NewConfig(pluginName, configDir...)
 }
+
+func (c *Context) TempJSON(defaultDir ...string) *TempJSON {
+	return NewTempJSON(defaultDir...)
+}
