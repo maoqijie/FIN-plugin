@@ -8,10 +8,20 @@ import (
 	"time"
 )
 
+// PluginInfo 插件信息
+type PluginInfo struct {
+	Name        string
+	DisplayName string
+	Version     string
+	Description string
+	Author      string
+}
+
 type Plugin interface {
 	Init(ctx *Context) error
 	Start() error
 	Stop() error
+	GetInfo() PluginInfo
 }
 
 type ConsoleCommandHandler func(args []string) error

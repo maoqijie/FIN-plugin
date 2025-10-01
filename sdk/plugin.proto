@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package sdk;
+
+option go_package = "github.com/maoqijie/FIN-plugin/sdk";
+
+// PluginService 定义插件的 gRPC 服务接口
+service PluginService {
+  rpc Init(InitRequest) returns (InitResponse);
+  rpc Start(StartRequest) returns (StartResponse);
+  rpc Stop(StopRequest) returns (StopResponse);
+  rpc GetInfo(GetInfoRequest) returns (GetInfoResponse);
+}
+
+message InitRequest {}
+
+message InitResponse {
+  bool success = 1;
+}
+
+message StartRequest {}
+
+message StartResponse {
+  bool success = 1;
+}
+
+message StopRequest {}
+
+message StopResponse {
+  bool success = 1;
+}
+
+message GetInfoRequest {}
+
+message GetInfoResponse {
+  string name = 1;
+  string display_name = 2;
+  string version = 3;
+  string description = 4;
+  string author = 5;
+}

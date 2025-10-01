@@ -1,0 +1,16 @@
+name: example-plugin
+displayName: 示例插件
+version: 1.0.0
+description: 跨平台示例插件
+author: 作者名
+source: local  # local 或 market
+
+# 跨平台配置 - 指定不同平台的可执行文件路径
+platform:
+  windows_amd64: example-plugin.exe
+  windows_arm64: example-plugin.exe
+  linux_amd64: example-plugin
+  linux_arm64: example-plugin
+  darwin_amd64: example-plugin
+  darwin_arm64: example-plugin
+  android_arm64: example-plugin
