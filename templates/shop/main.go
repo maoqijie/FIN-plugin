@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -368,12 +367,7 @@ func (p *ShopPlugin) saveConfig() error {
 		"收购":      p.buybackItems,
 	}
 
-	data, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	return p.ctx.Config().SaveConfig("config.json", string(data))
+	return p.ctx.Config().SaveConfig("config.json", config)
 }
 
 func NewPlugin() sdk.Plugin {
