@@ -283,3 +283,11 @@ func (c *Context) Utils() *Utils {
 func (c *Context) Translator() *Translator {
 	return NewTranslator()
 }
+
+func (c *Context) Console() *Console {
+	pluginName := c.PluginName()
+	if pluginName == "" {
+		pluginName = "Plugin"
+	}
+	return NewConsole(pluginName)
+}
