@@ -496,3 +496,172 @@ func (g *GameUtils) Tellraw(selector, message string) error {
 	cmd := fmt.Sprintf("tellraw %s %s", selector, string(jsonBytes))
 	return g.SendCommand(cmd)
 }
+
+// SendCommandWithResponse 发送命令并等待响应
+// cmd: Minecraft 命令
+// timeout: 超时时间（秒），默认 30 秒
+// 返回: 命令输出结果、是否超时、错误
+//
+// 示例:
+//   output, timedOut, err := utils.SendCommandWithResponse("testfor @a", 10.0)
+//   if err == nil && !timedOut {
+//       // 处理输出
+//   }
+func (g *GameUtils) SendCommandWithResponse(cmd string, timeout ...float64) (interface{}, bool, error) {
+	t := 30.0
+	if len(timeout) > 0 {
+		t = timeout[0]
+	}
+
+	giVal := reflect.ValueOf(g.gi)
+	if !giVal.IsValid() || giVal.IsNil() {
+		return nil, false, fmt.Errorf("gameInterface 未初始化")
+	}
+
+	commandsMethod := giVal.MethodByName("Commands")
+	if !commandsMethod.IsValid() {
+		return nil, false, fmt.Errorf("gameInterface 不支持 Commands 方法")
+	}
+
+	commandsVal := commandsMethod.Call(nil)
+	if len(commandsVal) == 0 || !commandsVal[0].IsValid() {
+		return nil, false, fmt.Errorf("Commands 返回值无效")
+	}
+
+	sendMethod := commandsVal[0].MethodByName("SendWSCommandWithTimeout")
+	if !sendMethod.IsValid() {
+		return nil, false, fmt.Errorf("Commands 不支持 SendWSCommandWithTimeout 方法")
+	}
+
+	timeoutDuration := time.Duration(t * float64(time.Second))
+	results := sendMethod.Call([]reflect.Value{
+		reflect.ValueOf(cmd),
+		reflect.ValueOf(timeoutDuration),
+	})
+	if len(results) != 3 {
+		return nil, false, fmt.Errorf("SendWSCommandWithTimeout 返回值数量不正确")
+	}
+
+	timedOut := results[1].Bool()
+	var err error
+	if !results[2].IsNil() {
+		err = results[2].Interface().(error)
+	}
+
+	return results[0].Interface(), timedOut, err
+}
+
+// SayTo 向指定目标发送聊天消息（使用 tellraw）
+// target: 目标玩家选择器或名称
+// text: 消息内容
+//
+// 示例:
+//   utils.SayTo("@a", "欢迎来到服务器！")
+//   utils.SayTo("Steve", "你好！")
+func (g *GameUtils) SayTo(target, text string) error {
+	return g.Tellraw(target, text)
+}
+
+// PlayerTitle 向指定玩家显示标题
+// target: 目标玩家选择器或名称
+// text: 标题文本
+//
+// 示例:
+//   utils.PlayerTitle("@a", "游戏开始")
+func (g *GameUtils) PlayerTitle(target, text string) error {
+	cmd := fmt.Sprintf("title %s title %s", target, text)
+	return g.SendCommand(cmd)
+}
+
+// PlayerSubtitle 向指定玩家显示副标题
+// target: 目标玩家选择器或名称
+// text: 副标题文本
+//
+// 示例:
+//   utils.PlayerSubtitle("@a", "Good Luck")
+func (g *GameUtils) PlayerSubtitle(target, text string) error {
+	cmd := fmt.Sprintf("title %s subtitle %s", target, text)
+	return g.SendCommand(cmd)
+}
+
+// PlayerActionbar 向指定玩家显示 ActionBar 消息
+// target: 目标玩家选择器或名称
+// text: 消息文本
+//
+// 示例:
+//   utils.PlayerActionbar("@a", "当前血量: 20/20")
+func (g *GameUtils) PlayerActionbar(target, text string) error {
+	cmd := fmt.Sprintf("title %s actionbar %s", target, text)
+	return g.SendCommand(cmd)
+}
+
+// SendWOCommand 发送高权限控制台命令（Settings 通道）
+// cmd: 控制台命令
+//
+// 注意: 这个方法需要主程序支持 Settings 通道
+//
+// 示例:
+//   utils.SendWOCommand("list")
+func (g *GameUtils) SendWOCommand(cmd string) error {
+	giVal := reflect.ValueOf(g.gi)
+	if !giVal.IsValid() || giVal.IsNil() {
+		return fmt.Errorf("gameInterface 未初始化")
+	}
+
+	commandsMethod := giVal.MethodByName("Commands")
+	if !commandsMethod.IsValid() {
+		return fmt.Errorf("gameInterface 不支持 Commands 方法")
+	}
+
+	commandsVal := commandsMethod.Call(nil)
+	if len(commandsVal) == 0 || !commandsVal[0].IsValid() {
+		return fmt.Errorf("Commands 返回值无效")
+	}
+
+	// 尝试调用 SendSettings 方法
+	sendMethod := commandsVal[0].MethodByName("SendSettings")
+	if !sendMethod.IsValid() {
+		// 如果不支持，回退到普通命令
+		return g.SendCommand(cmd)
+	}
+
+	results := sendMethod.Call([]reflect.Value{reflect.ValueOf(cmd)})
+	if len(results) > 0 && !results[0].IsNil() {
+		return fmt.Errorf("发送控制台命令失败: %v", results[0].Interface())
+	}
+
+	return nil
+}
+
+// SendPacket 发送游戏网络数据包
+// packetID: 数据包 ID
+// packet: 数据包内容（map 或结构体）
+//
+// 注意: 这是低级 API，需要了解 Minecraft 协议
+//
+// 示例:
+//   utils.SendPacket(0x09, map[string]interface{}{
+//       "text": "Hello",
+//   })
+func (g *GameUtils) SendPacket(packetID uint32, packet interface{}) error {
+	giVal := reflect.ValueOf(g.gi)
+	if !giVal.IsValid() || giVal.IsNil() {
+		return fmt.Errorf("gameInterface 未初始化")
+	}
+
+	// 尝试调用 SendPacket 方法
+	sendMethod := giVal.MethodByName("SendPacket")
+	if !sendMethod.IsValid() {
+		return fmt.Errorf("gameInterface 不支持 SendPacket 方法")
+	}
+
+	results := sendMethod.Call([]reflect.Value{
+		reflect.ValueOf(packetID),
+		reflect.ValueOf(packet),
+	})
+	if len(results) > 0 && !results[0].IsNil() {
+		return fmt.Errorf("发送数据包失败: %v", results[0].Interface())
+	}
+
+	return nil
+}

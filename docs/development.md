@@ -235,12 +235,62 @@ func (p *ExamplePlugin) Init(ctx *sdk.Context) error {
 - **TakeItemOutItemFrame(x, y, z int)** - 从展示框中取出物品
   - 返回：`error` 使用 `kill` 命令移除展示框
 
-#### 辅助方法
+#### 命令发送方法
 
 - **SendCommand(cmd string)** - 发送游戏命令（WebSocket 身份）
+  - 示例：`utils.SendCommand("gamemode 1 Steve")`
+
+- **SendCommandWithResponse(cmd string, timeout ...float64)** - 发送命令并等待响应
+  - 返回：`(output interface{}, timedOut bool, err error)` 命令输出、是否超时、错误
+  - 示例：
+    ```go
+    output, timedOut, err := utils.SendCommandWithResponse("testfor @a", 10.0)
+    if !timedOut && err == nil {
+        // 处理命令输出
+    }
+    ```
+
+- **SendWOCommand(cmd string)** - 发送高权限控制台命令（Settings 通道）
+  - 用于需要更高权限的命令
+  - 示例：`utils.SendWOCommand("list")`
+
+- **SendPacket(packetID uint32, packet interface{})** - 发送游戏网络数据包
+  - 低级 API，需要了解 Minecraft 协议
+  - 示例：
+    ```go
+    utils.SendPacket(0x09, map[string]interface{}{
+        "text": "Hello",
+    })
+    ```
+
+#### 消息发送方法
+
 - **SendChat(message string)** - 让机器人在聊天栏发言
+  - 示例：`utils.SendChat("大家好！")`
+
 - **Title(message string)** - 以 actionbar 形式向所有玩家显示消息
-- **Tellraw(selector, message string)** - 使用 tellraw 命令发送 JSON 格式消息（自动包装为 rawtext 格式）
+  - 示例：`utils.Title("欢迎来到服务器")`
+
+- **Tellraw(selector, message string)** - 使用 tellraw 命令发送 JSON 格式消息
+  - 自动包装为 rawtext 格式
+  - 示例：`utils.Tellraw("@a", "这是一条消息")`
+
+- **SayTo(target, text string)** - 向指定目标发送聊天消息
+  - 等同于 Tellraw，提供更友好的方法名
+  - 示例：
+    ```go
+    utils.SayTo("@a", "欢迎所有玩家！")
+    utils.SayTo("Steve", "你好，Steve！")
+    ```
+
+- **PlayerTitle(target, text string)** - 向指定玩家显示标题
+  - 示例：`utils.PlayerTitle("@a", "游戏开始")`
+
+- **PlayerSubtitle(target, text string)** - 向指定玩家显示副标题
+  - 示例：`utils.PlayerSubtitle("@a", "Good Luck")`
+
+- **PlayerActionbar(target, text string)** - 向指定玩家显示 ActionBar 消息
+  - 示例：`utils.PlayerActionbar("@a", "当前血量: 20/20")`
 
 #### 使用示例
 
@@ -281,6 +331,76 @@ func (p *plugin) Start() error {
     // 使用 tellraw 发送格式化消息
     utils.Tellraw("@a", "这是一条来自插件的消息")
 
+    // 使用便捷的消息发送方法
+    utils.SayTo("@a", "欢迎来到服务器！")
+    utils.PlayerTitle("@a", "游戏开始")
+    utils.PlayerSubtitle("@a", "祝你好运")
+    utils.PlayerActionbar("Steve", "血量: 20/20")
+
+    // 发送命令并等待响应
+    output, timedOut, err := utils.SendCommandWithResponse("list", 5.0)
+    if !timedOut && err == nil {
+        p.ctx.Logf("命令执行成功，输出: %v", output)
+    }
+
+    return nil
+}
+```
+
+#### 命令发送完整示例
+
+```go
+func (p *plugin) BroadcastMessage() error {
+    utils := p.ctx.GameUtils()
+
+    // 方式 1: 使用 SendChat（机器人发言）
+    utils.SendChat("大家好！")
+
+    // 方式 2: 使用 Tellraw（向玩家发送消息）
+    utils.Tellraw("@a", "§a欢迎来到服务器！")
+
+    // 方式 3: 使用 SayTo（更友好的 API）
+    utils.SayTo("@a", "§e系统消息：服务器将在 5 分钟后重启")
+
+    // 向特定玩家发送消息
+    utils.SayTo("Steve", "§c你有一条私信")
+
+    // 显示不同类型的标题
+    utils.PlayerTitle("@a", "§6重要公告")
+    utils.PlayerSubtitle("@a", "请注意查看聊天栏")
+    utils.PlayerActionbar("@a", "§a在线玩家: 10")
+
+    return nil
+}
+
+// 执行命令并处理结果
+func (p *plugin) ExecuteCommand() error {
+    utils := p.ctx.GameUtils()
+
+    // 简单命令执行（不等待结果）
+    err := utils.SendCommand("time set day")
+    if err != nil {
+        return fmt.Errorf("设置时间失败: %w", err)
+    }
+
+    // 执行命令并获取结果
+    output, timedOut, err := utils.SendCommandWithResponse("testfor @a", 10.0)
+    if timedOut {
+        p.ctx.Logf("命令执行超时")
+        return fmt.Errorf("命令超时")
+    }
+    if err != nil {
+        return fmt.Errorf("命令执行失败: %w", err)
+    }
+
+    p.ctx.Logf("命令输出: %v", output)
+
+    // 检查命令是否成功
+    success, _ := utils.IsCmdSuccess("testfor @a", 5.0)
+    if success {
+        p.ctx.Logf("至少有一个玩家在线")
+    }
+
     return nil
 }
 ```
@@ -292,6 +412,16 @@ func (p *plugin) Start() error {
 3. `GetTarget` 方法目前返回空切片，具体实现需要解析 querytarget 的 JSON 响应
 4. `IsOp` 通过尝试执行需要权限的命令来判断，可能不够准确
 5. 所有方法在 GameInterface 未初始化时会返回错误
+6. **命令发送方法**：
+   - `SendCommand` - 普通 WebSocket 命令，不等待响应
+   - `SendCommandWithResponse` - 等待命令响应和结果
+   - `SendWOCommand` - 高权限控制台命令（Settings 通道）
+   - `SendPacket` - 低级网络数据包 API
+7. **消息发送最佳实践**：
+   - 机器人发言：使用 `SendChat`
+   - 向玩家发送消息：使用 `SayTo` 或 `Tellraw`
+   - 显示标题：使用 `PlayerTitle`、`PlayerSubtitle`、`PlayerActionbar`
+   - 支持目标选择器：`@a`（所有玩家）、`@p`（最近玩家）、玩家名
 
 ### Utils 实用工具方法
 
