@@ -291,3 +291,11 @@ func (c *Context) Console() *Console {
 	}
 	return NewConsole(pluginName)
 }
+
+func (c *Context) Config(configDir ...string) *Config {
+	pluginName := c.PluginName()
+	if pluginName == "" {
+		pluginName = "Plugin"
+	}
+	return NewConfig(pluginName, configDir...)
+}
