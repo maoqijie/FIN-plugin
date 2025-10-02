@@ -1,0 +1,105 @@
+syntax = "proto3";
+
+package sdk;
+
+option go_package = "github.com/maoqijie/FIN-plugin/sdk";
+
+// CallbackService 定义插件提供给主进程的回调接口
+// 主进程通过 gRPC 调用这些方法来通知插件事件发生
+service CallbackService {
+  // 事件回调
+  rpc OnChatEvent(ChatEventRequest) returns (ChatEventResponse);
+  rpc OnPlayerJoinEvent(PlayerEventRequest) returns (PlayerEventResponse);
+  rpc OnPlayerLeaveEvent(PlayerEventRequest) returns (PlayerEventResponse);
+  rpc OnPacketEvent(PacketEventRequest) returns (PacketEventResponse);
+  rpc OnPreloadEvent(PreloadEventRequest) returns (PreloadEventResponse);
+  rpc OnActiveEvent(ActiveEventRequest) returns (ActiveEventResponse);
+  rpc OnFrameExitEvent(FrameExitEventRequest) returns (FrameExitEventResponse);
+  rpc OnBroadcastEvent(BroadcastEventRequest) returns (BroadcastEventResponse);
+
+  // 控制台命令回调
+  rpc OnConsoleCommand(ConsoleCommandRequest) returns (ConsoleCommandResponse);
+}
+
+// 聊天事件
+message ChatEventRequest {
+  uint32 callback_id = 1;
+  string sender = 2;
+  string message = 3;
+}
+
+message ChatEventResponse {
+  bool cancel = 1;  // 是否取消事件传播
+}
+
+// 玩家事件
+message PlayerEventRequest {
+  uint32 callback_id = 1;
+  bytes raw_data = 2;  // protocol.packet.PlayerListEntry 序列化数据
+}
+
+message PlayerEventResponse {
+  bool success = 1;
+}
+
+// 数据包事件
+message PacketEventRequest {
+  uint32 callback_id = 1;
+  uint32 packet_id = 2;
+  bytes packet_data = 3;  // packet 序列化数据
+}
+
+message PacketEventResponse {
+  bool success = 1;
+}
+
+// 预加载事件
+message PreloadEventRequest {
+  uint32 callback_id = 1;
+}
+
+message PreloadEventResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+// 激活事件
+message ActiveEventRequest {
+  uint32 callback_id = 1;
+}
+
+message ActiveEventResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+// 框架退出事件
+message FrameExitEventRequest {
+  uint32 callback_id = 1;
+}
+
+message FrameExitEventResponse {
+  bool success = 1;
+}
+
+// 广播事件
+message BroadcastEventRequest {
+  uint32 callback_id = 1;
+  string name = 2;
+  bytes data = 3;  // JSON-encoded map[string]interface{}
+}
+
+message BroadcastEventResponse {
+  bytes result = 1;  // JSON-encoded interface{}
+}
+
+// 控制台命令
+message ConsoleCommandRequest {
+  uint32 callback_id = 1;
+  repeated string args = 2;
+}
+
+message ConsoleCommandResponse {
+  bool success = 1;
+  string error = 2;
+}

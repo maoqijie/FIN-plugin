@@ -12,10 +12,13 @@ service PluginService {
   rpc GetInfo(GetInfoRequest) returns (GetInfoResponse);
 }
 
-message InitRequest {}
+message InitRequest {
+  uint32 context_service_id = 1;  // GRPCBroker ID for ContextService
+}
 
 message InitResponse {
   bool success = 1;
+  uint32 callback_service_id = 2;  // GRPCBroker ID for CallbackService
 }
 
 message StartRequest {}

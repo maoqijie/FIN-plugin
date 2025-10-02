@@ -27,7 +27,8 @@ type InventorySlot struct {
 
 // GameUtils 提供高级游戏交互接口，类似 ToolDelta 的 game_utils
 type GameUtils struct {
-	gi interface{} // 存储 *game_interface.GameInterface
+	gi        interface{} // 存储 *game_interface.GameInterface
+	sayToFunc func(player, message string) // gRPC 代理函数
 }
 
 // NewGameUtils 创建 GameUtils 实例
@@ -216,7 +217,13 @@ func (g *GameUtils) GetItem(target, itemName string, itemSpecialID int) (int, er
 	if output.Kind() == reflect.Ptr {
 		output = output.Elem()
 	}
-	successCount := output.FieldByName("SuccessCount").Int()
+	successCountField := output.FieldByName("SuccessCount")
+	var successCount int64
+	if successCountField.Kind() == reflect.Uint32 || successCountField.Kind() == reflect.Uint {
+		successCount = int64(successCountField.Uint())
+	} else {
+		successCount = successCountField.Int()
+	}
 
 	return int(successCount), nil
 }
@@ -353,7 +360,13 @@ func (g *GameUtils) IsCmdSuccess(cmd string, timeout float64) (bool, error) {
 	if output.Kind() == reflect.Ptr {
 		output = output.Elem()
 	}
-	successCount := output.FieldByName("SuccessCount").Int()
+	successCountField := output.FieldByName("SuccessCount")
+	var successCount int64
+	if successCountField.Kind() == reflect.Uint32 || successCountField.Kind() == reflect.Uint {
+		successCount = int64(successCountField.Uint())
+	} else {
+		successCount = successCountField.Int()
+	}
 
 	return successCount > 0, nil
 }
@@ -595,6 +608,12 @@ func (g *GameUtils) SendCommandWithResponse(cmd string, timeout ...float64) (int
 //   utils.SayTo("@a", "欢迎来到服务器！")
 //   utils.SayTo("Steve", "你好！")
 func (g *GameUtils) SayTo(target, text string) error {
+	// 优先使用 gRPC 代理函数（跨平台插件）
+	if g.sayToFunc != nil {
+		g.sayToFunc(target, text)
+		return nil
+	}
+	// 传统方式（本地插件）
 	return g.Tellraw(target, text)
 }
 

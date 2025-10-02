@@ -556,11 +556,11 @@ func (c *Context) ListPluginAPIs() []PluginAPIInfo {
 
 // DataPath 获取插件数据目录路径
 // 自动创建并返回插件专属数据文件夹路径
-// 默认为 "plugins/{插件名}/"
+// 基于主程序可执行文件位置的绝对路径
 //
 // 示例:
 //   dataPath := ctx.DataPath()
-//   // 返回: "plugins/my-plugin/"
+//   // 返回: "/path/to/main/data/my-plugin/"
 func (c *Context) DataPath() string {
 	if c == nil {
 		return ""
@@ -570,7 +570,29 @@ func (c *Context) DataPath() string {
 		pluginName = "unknown"
 	}
 
-	dataPath := filepath.Join("plugins", pluginName)
+	// 获取主程序可执行文件的绝对路径
+	exePath, err := os.Executable()
+	if err != nil {
+		// 回退到相对路径
+		dataPath := filepath.Join("data", pluginName)
+		os.MkdirAll(dataPath, 0755)
+		return dataPath
+	}
+
+	// 解析符号链接获取真实路径
+	exePath, err = filepath.EvalSymlinks(exePath)
+	if err != nil {
+		// 回退到相对路径
+		dataPath := filepath.Join("data", pluginName)
+		os.MkdirAll(dataPath, 0755)
+		return dataPath
+	}
+
+	// 获取主程序所在目录
+	exeDir := filepath.Dir(exePath)
+
+	// 构建绝对路径
+	dataPath := filepath.Join(exeDir, "data", pluginName)
 
 	// 确保目录存在
 	os.MkdirAll(dataPath, 0755)

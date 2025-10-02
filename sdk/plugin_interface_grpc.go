@@ -36,26 +36,48 @@ func (p *PluginGRPC) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, 
 // GRPCServer 是服务端实现
 type GRPCServer struct {
 	UnimplementedPluginServiceServer
-	Impl       Plugin
-	broker     *plugin.GRPCBroker
-	pluginCtx  *Context
-	ctxMutex   sync.RWMutex
+	Impl          Plugin
+	broker        *plugin.GRPCBroker
+	callbackServer *CallbackServerImpl
+	ctxMutex      sync.RWMutex
 }
 
 func (s *GRPCServer) Init(ctx context.Context, req *InitRequest) (*InitResponse, error) {
-	// 创建插件上下文（简化版，用于跨进程插件）
-	// 完整版需要通过 gRPC broker 传递接口
-	s.ctxMutex.Lock()
-	s.pluginCtx = NewContext(ContextOptions{
-		PluginName: "grpc-plugin", // 插件名称会在实际加载时更新
-	})
-	s.ctxMutex.Unlock()
-
-	err := s.Impl.Init(s.pluginCtx)
+	// 1. 连接到主进程的 ContextService
+	conn, err := s.broker.Dial(req.ContextServiceId)
 	if err != nil {
 		return &InitResponse{Success: false}, err
 	}
-	return &InitResponse{Success: true}, nil
+	contextClient := NewContextServiceClient(conn)
+
+	// 2. 创建 CallbackServer，用于接收主进程的事件回调
+	s.callbackServer = NewCallbackServerImpl()
+	callbackServiceID := s.broker.NextId()
+
+	go s.broker.AcceptAndServe(callbackServiceID, func(opts []grpc.ServerOption) *grpc.Server {
+		server := grpc.NewServer(opts...)
+		RegisterCallbackServiceServer(server, s.callbackServer)
+		return server
+	})
+
+	// 3. 创建 ContextGRPCProxy 并转换为 Context
+	pluginName := "grpc-plugin" // 默认名称
+	if info := s.Impl.GetInfo(); info.Name != "" {
+		pluginName = info.Name
+	}
+	ctxProxy := NewContextGRPCProxy(pluginName, contextClient, s.callbackServer)
+	pluginCtx := ctxProxy.ToContext()
+
+	// 4. 调用插件的 Init
+	err = s.Impl.Init(pluginCtx)
+	if err != nil {
+		return &InitResponse{Success: false}, err
+	}
+
+	return &InitResponse{
+		Success:           true,
+		CallbackServiceId: callbackServiceID,
+	}, nil
 }
 
 func (s *GRPCServer) Start(ctx context.Context, req *StartRequest) (*StartResponse, error) {
@@ -87,18 +109,44 @@ func (s *GRPCServer) GetInfo(ctx context.Context, req *GetInfoRequest) (*GetInfo
 
 // GRPCClient 是客户端实现
 type GRPCClient struct {
-	client PluginServiceClient
-	broker *plugin.GRPCBroker
+	client         PluginServiceClient
+	broker         *plugin.GRPCBroker
+	contextServer  *ContextServer
+	callbackClient CallbackServiceClient
 }
 
 func (c *GRPCClient) Init(ctx *Context) error {
-	resp, err := c.client.Init(context.Background(), &InitRequest{})
+	// 1. 创建 ContextServer，暴露主进程的 Context 给插件
+	c.contextServer = NewContextServer(ctx)
+	contextServiceID := c.broker.NextId()
+
+	go c.broker.AcceptAndServe(contextServiceID, func(opts []grpc.ServerOption) *grpc.Server {
+		server := grpc.NewServer(opts...)
+		RegisterContextServiceServer(server, c.contextServer)
+		return server
+	})
+
+	// 2. 调用插件的 Init
+	resp, err := c.client.Init(context.Background(), &InitRequest{
+		ContextServiceId: contextServiceID,
+	})
 	if err != nil {
 		return err
 	}
 	if !resp.Success {
 		return fmt.Errorf("plugin init failed")
 	}
+
+	// 3. 连接到插件的 CallbackService
+	conn, err := c.broker.Dial(resp.CallbackServiceId)
+	if err != nil {
+		return fmt.Errorf("failed to connect to callback service: %v", err)
+	}
+	c.callbackClient = NewCallbackServiceClient(conn)
+
+	// 4. 将 callbackClient 设置到 contextServer，执行所有待处理的注册
+	c.contextServer.SetCallbackClient(c.callbackClient)
+
 	return nil
 }
 

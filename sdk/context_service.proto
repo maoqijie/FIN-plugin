@@ -1,0 +1,155 @@
+syntax = "proto3";
+
+package sdk;
+
+option go_package = "github.com/maoqijie/FIN-plugin/sdk";
+
+// ContextService 定义主进程提供给插件的 Context 接口
+// 插件通过 gRPC 调用这些方法来访问主进程功能
+service ContextService {
+  // 日志方法
+  rpc Log(LogRequest) returns (LogResponse);
+  rpc LogInfo(LogRequest) returns (LogResponse);
+  rpc LogSuccess(LogRequest) returns (LogResponse);
+  rpc LogWarning(LogRequest) returns (LogResponse);
+  rpc LogError(LogRequest) returns (LogResponse);
+
+  // 信息查询
+  rpc GetPluginName(Empty) returns (StringResponse);
+  rpc GetBotInfo(Empty) returns (BotInfoResponse);
+  rpc GetServerInfo(Empty) returns (ServerInfoResponse);
+  rpc GetQQInfo(Empty) returns (QQInfoResponse);
+  rpc GetInterworkInfo(Empty) returns (InterworkInfoResponse);
+
+  // 路径方法
+  rpc GetDataPath(Empty) returns (StringResponse);
+  rpc FormatDataPath(FormatDataPathRequest) returns (StringResponse);
+
+  // 游戏工具方法
+  rpc SayTo(SayToRequest) returns (BoolResponse);
+
+  // 控制台命令注册
+  rpc RegisterConsoleCommand(RegisterConsoleCommandRequest) returns (BoolResponse);
+
+  // 事件注册（返回 callback_id）
+  rpc RegisterChatHandler(RegisterHandlerRequest) returns (RegisterHandlerResponse);
+  rpc RegisterPlayerJoinHandler(RegisterHandlerRequest) returns (RegisterHandlerResponse);
+  rpc RegisterPlayerLeaveHandler(RegisterHandlerRequest) returns (RegisterHandlerResponse);
+  rpc RegisterPacketHandler(RegisterPacketHandlerRequest) returns (RegisterHandlerResponse);
+  rpc RegisterPacketAllHandler(RegisterHandlerRequest) returns (RegisterHandlerResponse);
+  rpc RegisterPreloadHandler(RegisterHandlerRequest) returns (RegisterHandlerResponse);
+  rpc RegisterActiveHandler(RegisterHandlerRequest) returns (RegisterHandlerResponse);
+  rpc RegisterFrameExitHandler(RegisterHandlerRequest) returns (RegisterHandlerResponse);
+  rpc RegisterBroadcastHandler(RegisterBroadcastHandlerRequest) returns (RegisterHandlerResponse);
+
+  // 消息控制
+  rpc CancelMessage(CancelMessageRequest) returns (BoolResponse);
+  rpc WaitMessage(WaitMessageRequest) returns (WaitMessageResponse);
+
+  // 广播
+  rpc TriggerBroadcast(TriggerBroadcastRequest) returns (TriggerBroadcastResponse);
+}
+
+message Empty {}
+
+message StringResponse {
+  string value = 1;
+}
+
+message BoolResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message LogRequest {
+  string message = 1;
+}
+
+message LogResponse {
+  bool success = 1;
+}
+
+message BotInfoResponse {
+  string bot_name = 1;
+  string bot_uuid = 2;
+}
+
+message ServerInfoResponse {
+  string server_code = 1;
+  string server_password = 2;
+  string server_address = 3;
+}
+
+message QQInfoResponse {
+  uint64 bot_qq = 1;
+  string bot_nick = 2;
+  repeated uint64 admin_qq = 3;
+}
+
+message InterworkInfoResponse {
+  map<string, int64> linked_groups = 1;
+}
+
+message FormatDataPathRequest {
+  repeated string path_parts = 1;
+}
+
+message RegisterConsoleCommandRequest {
+  string name = 1;
+  repeated string triggers = 2;
+  string usage = 3;
+  uint32 callback_id = 4;  // 插件提供的回调 ID
+}
+
+message RegisterHandlerRequest {
+  uint32 callback_id = 1;
+  int32 priority = 2;
+}
+
+message RegisterPacketHandlerRequest {
+  uint32 callback_id = 1;
+  repeated uint32 packet_ids = 2;
+  int32 priority = 3;
+}
+
+message RegisterBroadcastHandlerRequest {
+  string event_name = 1;
+  uint32 callback_id = 2;
+  int32 priority = 3;
+}
+
+message RegisterHandlerResponse {
+  bool success = 1;
+  string error = 2;
+  uint32 handler_id = 3;  // 主进程分配的 handler ID
+}
+
+message CancelMessageRequest {
+  string sender = 1;
+  string message = 2;
+}
+
+message WaitMessageRequest {
+  string player_name = 1;
+  int64 timeout_ms = 2;
+}
+
+message WaitMessageResponse {
+  bool success = 1;
+  string message = 2;
+  string error = 3;
+}
+
+message TriggerBroadcastRequest {
+  string name = 1;
+  bytes data = 2;  // JSON-encoded map[string]interface{}
+}
+
+message TriggerBroadcastResponse {
+  bytes results = 1;  // JSON-encoded []interface{}
+}
+
+message SayToRequest {
+  string player = 1;
+  string message = 2;
+}
