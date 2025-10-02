@@ -98,8 +98,8 @@
 ### 2. 复制模板
 
 ```bash
-# 复制到 Plugin 目录
-cp -r templates/shop Plugin/my-shop
+# 复制到 Plugin/grpc 目录
+cp -r templates/shop Plugin/grpc/my-shop
 
 # 或在控制台使用 create 命令创建新插件
 ```
@@ -111,7 +111,7 @@ cp -r templates/shop Plugin/my-shop
 ### 4. 编译运行
 
 ```bash
-cd Plugin/my-shop
+cd Plugin/grpc/my-shop
 go build -buildmode=plugin -o main.so main.go
 ```
 

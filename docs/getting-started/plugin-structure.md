@@ -3,7 +3,7 @@
 主程序运行时会在工作目录创建单一插件目录，所有插件按名称归档：
 
 ```
-Plugin/
+Plugin/grpc/
   example/
     example.so
     plugin.yaml
@@ -14,10 +14,10 @@ Plugin/
 
 ## 插件结构
 
-每个插件需要放在 `Plugin/<插件名>/` 目录下，例如：
+每个插件需要放在 `Plugin/grpc/<插件名>/` 目录下，例如：
 
 ```
-Plugin/example/
+Plugin/grpc/example/
   main.so             # 默认入口文件
   plugin.yaml         # 可选，补充元数据
   assets/

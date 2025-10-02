@@ -271,7 +271,7 @@ go build -buildmode=plugin -o main.so main.go
 
 ### 2. 安装插件
 
-将 `main.so` 复制到 `Plugin/shop/` 目录。
+将 `main.so` 复制到 `Plugin/grpc/shop/` 目录。
 
 ### 3. 准备服务器
 

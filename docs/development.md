@@ -77,7 +77,7 @@ FunInterWork/
 │   ├── sdk/             # SDK 源码
 │   ├── templates/       # 插件模板
 │   └── docs/            # 文档（当前目录）
-└── Plugin/              # 插件目录（运行时创建）
+└── Plugin/grpc/         # 插件目录（运行时创建）
     └── <插件名>/
         ├── main.go      # 插件源码
         ├── main.so      # 编译产物（自动生成）

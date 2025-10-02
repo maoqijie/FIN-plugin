@@ -1,7 +1,7 @@
 ## 开发流程示例
 
 1. **拉取框架**：在 FunInterWork 主仓库执行 `git submodule update --init PluginFramework`。
-2. **选择模板**：从 `templates/` 复制骨架到 `Plugin/<插件名>/`，并根据需要调整入口文件名。
+2. **选择模板**：从 `templates/` 复制骨架到 `Plugin/grpc/<插件名>/`，并根据需要调整入口文件名。
 3. **编写逻辑**：实现入口文件（暂建议使用 Go）。入口需实现 SDK 定义的 `Plugin` 接口，并导出工厂方法：
    ```go
    type Plugin interface {
