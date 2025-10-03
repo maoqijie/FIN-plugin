@@ -242,7 +242,7 @@ func (c *Context) LogInfo(format string, args ...interface{}) {
 	}
 	// ANSI 蓝色背景
 	msg := fmt.Sprintf(format, args...)
-	c.opts.Logger("\x1b[44m[INFO]\x1b[0m %s", msg)
+	c.opts.Logger("\x1b[44m INFO \x1b[0m %s", msg)
 }
 
 // LogSuccess 输出成功级别日志（绿色背景）
@@ -256,7 +256,7 @@ func (c *Context) LogSuccess(format string, args ...interface{}) {
 	}
 	// ANSI 绿色背景
 	msg := fmt.Sprintf(format, args...)
-	c.opts.Logger("\x1b[42m[SUCCESS]\x1b[0m %s", msg)
+	c.opts.Logger("\x1b[42m SUCCESS \x1b[0m %s", msg)
 }
 
 // LogWarning 输出警告级别日志（黄色背景）
@@ -270,7 +270,7 @@ func (c *Context) LogWarning(format string, args ...interface{}) {
 	}
 	// ANSI 黄色背景
 	msg := fmt.Sprintf(format, args...)
-	c.opts.Logger("\x1b[43m[WARNING]\x1b[0m %s", msg)
+	c.opts.Logger("\x1b[43m WARNING \x1b[0m %s", msg)
 }
 
 // LogError 输出错误级别日志（红色背景）
@@ -284,7 +284,7 @@ func (c *Context) LogError(format string, args ...interface{}) {
 	}
 	// ANSI 红色背景
 	msg := fmt.Sprintf(format, args...)
-	c.opts.Logger("\x1b[41m[ERROR]\x1b[0m %s", msg)
+	c.opts.Logger("\x1b[41m ERROR \x1b[0m %s", msg)
 }
 
 // ListenPreload 监听预加载事件（默认优先级 0）
